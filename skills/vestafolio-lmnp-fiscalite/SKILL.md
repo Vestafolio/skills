@@ -1,5 +1,6 @@
 ---
 name: vestafolio-lmnp-fiscalite
+version: 1.0.0
 description: Compare LMNP furnished-rental taxation between micro-BIC and régime réel with amortization using Vestafolio's simulator API. Use when a user asks "LMNP micro-BIC ou réel", how furnished rental income is taxed in France, about the 50 % / 30 % abattement, meublé de tourisme thresholds, building/furniture amortization, or which LMNP regime saves more tax.
 ---
 

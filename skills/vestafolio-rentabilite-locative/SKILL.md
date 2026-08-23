@@ -1,5 +1,6 @@
 ---
 name: vestafolio-rentabilite-locative
+version: 1.0.0
 description: Compute gross and net rental yield and monthly cash-flow for a French buy-to-let investment from acquisition cost, rent and annual charges using Vestafolio's simulator API. Use when a user asks about rental profitability, "quelle rentabilité locative", rendement brut vs net, cash-flow of an investissement locatif, or whether a rental property is a good deal.
 ---
 

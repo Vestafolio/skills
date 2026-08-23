@@ -1,5 +1,6 @@
 ---
 name: vestafolio-pea-vs-cto
+version: 1.0.0
 description: Compare PEA, CTO (compte-titres) and assurance-vie net-of-tax outcomes for a French investor using Vestafolio's simulator API. Use when a user asks which investment envelope to choose, about PEA vs CTO taxation, flat tax (PFU) on investments, assurance-vie abattement, or where to invest monthly savings in France.
 ---
 

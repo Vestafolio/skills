@@ -1,5 +1,6 @@
 ---
 name: vestafolio-credit-immobilier
+version: 1.0.0
 description: Compute French mortgage monthly payments (insurance included), total interest and the full amortization schedule using Vestafolio's simulator API. Use when a user asks about mortgage payments, loan cost, "quelle mensualité pour un crédit immobilier", "combien coûte un prêt de 250 000 €", amortization tables (tableau d'amortissement), or assurance emprunteur cost.
 ---
 

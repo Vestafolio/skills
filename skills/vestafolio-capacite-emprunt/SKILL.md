@@ -1,5 +1,6 @@
 ---
 name: vestafolio-capacite-emprunt
+version: 1.0.0
 description: Estimate the maximum mortgage a French household can borrow from income, existing charges and the HCSF 35 % debt ratio using Vestafolio's simulator API. Use when a user asks how much they can borrow, "combien puis-je emprunter", borrowing capacity (capacité d'emprunt), taux d'endettement, or what property budget their salary allows.
 ---
 

@@ -1,5 +1,6 @@
 ---
 name: vestafolio-choisir-regime
+version: 1.0.0
 description: Determine which French business legal forms (micro-entreprise, EI, EURL, SASU, SARL, SAS, SELARL, SELAS) an entrepreneur is eligible for and get a recommendation using Vestafolio's simulator API. Use when a user asks "quel statut juridique", which legal structure to start a business in France, micro-entreprise eligibility, or whether to create a company for liability or assurance chômage reasons.
 ---
 

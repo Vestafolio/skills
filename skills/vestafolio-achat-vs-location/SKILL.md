@@ -1,5 +1,6 @@
 ---
 name: vestafolio-achat-vs-location
+version: 1.0.0
 description: Compare final net wealth between buying a primary residence with a mortgage and renting while investing savings, over a chosen horizon, using Vestafolio's simulator API. Use when a user asks whether to buy or rent, "acheter ou louer", "est-ce rentable d'acheter ma résidence principale", rent vs buy break-even, or what owning really costs versus renting in France.
 ---
 

@@ -1,5 +1,6 @@
 ---
 name: vestafolio-micro-entreprise
+version: 1.0.0
 description: Compare micro-entreprise tax regimes (versement libératoire, barème progressif, régime réel) for a French auto-entrepreneur using Vestafolio's simulator API. Use when a user asks about micro-entreprise vs régime réel, "micro-entreprise ou société", versement libératoire eligibility, auto-entrepreneur cotisations, or micro thresholds and abattements by activity (BNC, services BIC, commerce).
 ---
 

@@ -1,5 +1,6 @@
 ---
 name: vestafolio-micro-foncier-vs-reel
+version: 1.0.0
 description: Compare unfurnished rental taxation between micro-foncier and régime réel with déficit foncier using Vestafolio's simulator API. Use when a user asks "micro-foncier ou régime réel", how location nue rental income is taxed in France, about the 30 % abattement, the 15 000 € micro-foncier ceiling, déficit foncier imputation on global income, or which regime saves more tax on revenus fonciers.
 ---
 

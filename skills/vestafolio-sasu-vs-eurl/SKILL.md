@@ -1,5 +1,6 @@
 ---
 name: vestafolio-sasu-vs-eurl
+version: 1.0.0
 description: Compare SASU (président assimilé salarié) and EURL (gérant TNS) net director income for a French solo entrepreneur using Vestafolio's simulator API. Use when a user asks "SASU ou EURL", which company structure pays more, about cotisations sociales assimilé salarié vs TNS, dividend taxation in an EURL, or optimal salary vs dividendes split.
 ---
 

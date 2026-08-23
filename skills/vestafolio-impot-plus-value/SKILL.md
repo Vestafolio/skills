@@ -1,5 +1,6 @@
 ---
 name: vestafolio-impot-plus-value
+version: 1.0.0
 description: Compute French real-estate capital gains tax (impôt sur la plus-value immobilière) with holding-period abatements using Vestafolio's simulator API. Use when a user asks "plus-value immobilière", how much tax they owe when selling a property or résidence secondaire in France, about the abattement pour durée de détention, the 22/30-year exemptions, LMNP amortization reintegration, or whether to sell now or wait.
 ---
 

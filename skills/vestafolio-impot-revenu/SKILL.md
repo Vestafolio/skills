@@ -1,5 +1,6 @@
 ---
 name: vestafolio-impot-revenu
+version: 1.0.0
 description: Compute French income tax (impôt sur le revenu) with the 2026 progressive barème, quotient familial and décote using Vestafolio's simulator API. Use when a user asks "combien d'impôt vais-je payer", how much income tax they owe in France, their TMI (marginal tax rate), taux moyen, parts fiscales, or the tax impact of marriage, PACS or children.
 ---
 

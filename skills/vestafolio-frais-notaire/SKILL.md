@@ -1,5 +1,6 @@
 ---
 name: vestafolio-frais-notaire
+version: 1.0.0
 description: Compute French notary fees (frais de notaire) for a property purchase — DMTO transfer taxes, notary emoluments, debours, CSI, optional mortgage fees — by department and ancien/neuf/terrain using Vestafolio's simulator API. Use when a user asks about closing costs, "combien de frais de notaire", droits de mutation, or ancien vs neuf fee differences.
 ---
 

@@ -1,5 +1,6 @@
 ---
 name: vestafolio-interets-composes
+version: 1.0.0
 description: Project compound-interest growth of an investment with initial capital and monthly contributions using Vestafolio's simulator API. Use when a user asks about intérêts composés, compound interest projections, how much recurring savings will grow over N years, or wants a year-by-year table of invested amounts versus gains.
 ---
 

@@ -1,5 +1,6 @@
 ---
 name: vestafolio-age-retraite
+version: 1.0.0
 description: Simulate early retirement (FIRE) financed by invested capital for a French saver using Vestafolio's simulator API. Use when a user asks "à quel âge puis-je arrêter de travailler", "quand serai-je financièrement indépendant", at what age they can retire early, how much capital they need for FIRE, whether their savings will last, or how part-time income and expense cuts change their retirement age.
 ---
 
