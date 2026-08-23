@@ -1,0 +1,30 @@
+# Runs IN THE PUBLIC skills repo (installed there by sync-skills.yml —
+# do not edit in the public repo, edit here).
+#
+# Publishes every skill folder under skills/ to ClawHub using ClawHub's
+# official reusable workflow, whenever the sync push lands on main.
+#
+# Required setup in the PUBLIC repo:
+#   - Actions secret CLAWHUB_TOKEN: API token created on clawhub.ai
+#     while signed in as the Vestafolio account.
+
+name: Publish skills to ClawHub
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/**"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    # Pinned to a commit SHA: this third-party workflow receives the
+    # ClawHub token, so upgrades must be a deliberate, reviewed bump.
+    # openclaw/clawhub main as of 2026-08-23:
+    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@fb0ef1d21eab78ad2b9da69f48045d7747cc73c1
+    with:
+      root: skills
+      dry_run: false
+    secrets:
+      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
