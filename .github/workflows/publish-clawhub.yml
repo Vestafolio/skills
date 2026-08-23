@@ -17,6 +17,11 @@ on:
       - "skills/**"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  # OIDC token for ClawHub's provenance check on the publishing repo.
+  id-token: write
+
 jobs:
   publish:
     # Pinned to a commit SHA: this third-party workflow receives the
