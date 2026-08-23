@@ -7,8 +7,18 @@ Each skill calls the public, unauthenticated compute API at
 
 ## Install
 
-Copy any `vestafolio-*` directory into your agent's skills directory
-(e.g. `~/.claude/skills/` for Claude Code), or point your agent at this folder.
+With the [skills CLI](https://github.com/vercel-labs/skills) (Claude Code,
+Codex, Cursor, Gemini CLI and any agent supporting the
+[Agent Skills](https://agentskills.io) format):
+
+```bash
+npx skills add VestafolioOrg/skills           # pick skills interactively
+npx skills add VestafolioOrg/skills --all     # install all of them
+npx skills add VestafolioOrg/skills --skill vestafolio-pea-vs-cto
+```
+
+Or manually: copy any `vestafolio-*` directory into your agent's skills
+directory (e.g. `~/.claude/skills/` for Claude Code).
 
 ## How the skills stay in sync with the API
 
