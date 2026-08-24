@@ -12,9 +12,9 @@ Codex, Cursor, Gemini CLI and any agent supporting the
 [Agent Skills](https://agentskills.io) format):
 
 ```bash
-npx skills add VestafolioOrg/skills           # pick skills interactively
-npx skills add VestafolioOrg/skills --all     # install all of them
-npx skills add VestafolioOrg/skills --skill vestafolio-pea-vs-cto
+npx skills add Vestafolio/skills           # pick skills interactively
+npx skills add Vestafolio/skills --all     # install all of them
+npx skills add Vestafolio/skills --skill vestafolio-pea-vs-cto
 ```
 
 Or manually: copy any `vestafolio-*` directory into your agent's skills
