@@ -1,3 +1,5 @@
+🇫🇷 [Version française](README.fr.md)
+
 # Vestafolio Agent Skills
 
 One skill per Vestafolio simulator, teaching AI agents how to answer French
@@ -31,9 +33,9 @@ canonical schema at call time:
 - `GET https://www.vestafolio.com/api/tools/v1/openapi.json` — OpenAPI 3.1
 - `GET https://www.vestafolio.com/llms.txt` — site-level agent index
 
-The single curl example embedded in each skill is validated against the real
-zod schema by `ui/src/lib/tools/skills-sync.test.ts` — if a schema changes in a
-way that breaks an example, CI fails.
+The single curl example embedded in each skill is validated in CI against the
+real zod schemas of the simulators — if a schema changes in a way that breaks
+an example, the build fails before the skill is published.
 
 ## Conventions
 
