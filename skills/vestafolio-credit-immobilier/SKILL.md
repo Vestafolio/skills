@@ -1,10 +1,32 @@
 ---
 name: vestafolio-credit-immobilier
-version: 1.1.0
+version: 1.2.0
 description: Compute French mortgage monthly payments (insurance included), total interest and the full amortization schedule using Vestafolio's simulator API, after asking the simulator's questions (amount borrowed, annual rate, duration, insurance rate). Use when a user asks about mortgage payments, loan cost, "quelle mensualité pour un crédit immobilier", "combien coûte un prêt de 250 000 €", amortization tables (tableau d'amortissement), or assurance emprunteur cost.
 ---
 
 # Crédit immobilier (Vestafolio)
+
+## Required workflow
+
+For a request within this simulator's scope:
+
+1. Reuse answers already supplied. Ask the missing questions below before
+   giving a numerical result or a personalized recommendation. Example values
+   and schema defaults are not the user's answers.
+2. Once inputs are known, actually call a tool: fetch the schema, then POST
+   the user's parameters. Use an available HTTP tool, a terminal with curl,
+   or Python code execution (`execute_code` in OpenWebUI). Python can use
+   `urllib.request`; in browser-based Pyodide use `await pyfetch(...)` from
+   `pyodide.http`. A Python environment does not need a shell to call the API.
+3. Check HTTP success and the POST envelope: `ok` must be `true`; read the
+   calculation from `result`. Ground the answer in that output, state relevant
+   assumptions and limits, and link the interactive simulator below.
+
+Writing a code block is not execution. Do not substitute mental arithmetic,
+remembered tax rules, or the worked example for a tool result. If execution
+or network access is unavailable, or the API fails, say the calculation could
+not be completed and provide the simulator link; do not invent its result or
+recommendation. A schema GET alone is not a completed simulation.
 
 ## Response language
 
@@ -64,7 +86,7 @@ GET https://www.vestafolio.com/api/tools/v1/credit-immobilier
 Then POST the user's parameters (all amounts in euros, rates in percent):
 
 ```bash
-curl -s -X POST https://www.vestafolio.com/api/tools/v1/credit-immobilier \
+curl --fail-with-body --silent --show-error --max-time 30 -X POST https://www.vestafolio.com/api/tools/v1/credit-immobilier \
   -H 'Content-Type: application/json' \
   -d '{
     "principal": 250000,

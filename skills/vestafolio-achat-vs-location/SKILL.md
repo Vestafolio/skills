@@ -1,10 +1,32 @@
 ---
 name: vestafolio-achat-vs-location
-version: 1.1.0
+version: 1.2.0
 description: Compare final net wealth between buying a primary residence with a mortgage and renting while investing savings, over a chosen horizon, using Vestafolio's simulator API, after asking the simulator's questions (available savings first, market assumptions, purchase scenario, rent scenario). Use when a user asks whether to buy or rent, "acheter ou louer", "est-ce rentable d'acheter ma résidence principale", rent vs buy break-even, or what owning really costs versus renting in France.
 ---
 
 # Acheter vs louer (Vestafolio)
+
+## Required workflow
+
+For a request within this simulator's scope:
+
+1. Reuse answers already supplied. Ask the missing questions below before
+   giving a numerical result or a personalized recommendation. Example values
+   and schema defaults are not the user's answers.
+2. Once inputs are known, actually call a tool: fetch the schema, then POST
+   the user's parameters. Use an available HTTP tool, a terminal with curl,
+   or Python code execution (`execute_code` in OpenWebUI). Python can use
+   `urllib.request`; in browser-based Pyodide use `await pyfetch(...)` from
+   `pyodide.http`. A Python environment does not need a shell to call the API.
+3. Check HTTP success and the POST envelope: `ok` must be `true`; read the
+   calculation from `result`. Ground the answer in that output, state relevant
+   assumptions and limits, and link the interactive simulator below.
+
+Writing a code block is not execution. Do not substitute mental arithmetic,
+remembered tax rules, or the worked example for a tool result. If execution
+or network access is unavailable, or the API fails, say the calculation could
+not be completed and provide the simulator link; do not invent its result or
+recommendation. A schema GET alone is not a completed simulation.
 
 ## Response language
 
@@ -134,7 +156,7 @@ GET https://www.vestafolio.com/api/tools/v1/achat-vs-location
 Then POST the user's parameters (all amounts in euros, rates in percent):
 
 ```bash
-curl -s -X POST https://www.vestafolio.com/api/tools/v1/achat-vs-location \
+curl --fail-with-body --silent --show-error --max-time 30 -X POST https://www.vestafolio.com/api/tools/v1/achat-vs-location \
   -H 'Content-Type: application/json' \
   -d '{
     "availableSavings": 80000,

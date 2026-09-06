@@ -1,10 +1,32 @@
 ---
 name: vestafolio-pea-vs-cto
-version: 1.1.0
+version: 1.2.0
 description: Compare PEA, CTO (compte-titres) and assurance-vie net-of-tax outcomes for a French investor using Vestafolio's simulator API, after asking the simulator's questions (initial capital, monthly contribution, TMI, holding period, expected return, assurance-vie fees). Use when a user asks which investment envelope to choose, about PEA vs CTO taxation, flat tax (PFU) on investments, assurance-vie abattement, the 150 000 € PEA ceiling, or where to invest monthly savings in France.
 ---
 
 # PEA vs CTO vs Assurance-vie (Vestafolio)
+
+## Required workflow
+
+For a request within this simulator's scope:
+
+1. Reuse answers already supplied. Ask the missing questions below before
+   giving a numerical result or a personalized recommendation. Example values
+   and schema defaults are not the user's answers.
+2. Once inputs are known, actually call a tool: fetch the schema, then POST
+   the user's parameters. Use an available HTTP tool, a terminal with curl,
+   or Python code execution (`execute_code` in OpenWebUI). Python can use
+   `urllib.request`; in browser-based Pyodide use `await pyfetch(...)` from
+   `pyodide.http`. A Python environment does not need a shell to call the API.
+3. Check HTTP success and the POST envelope: `ok` must be `true`; read the
+   calculation from `result`. Ground the answer in that output, state relevant
+   assumptions and limits, and link the interactive simulator below.
+
+Writing a code block is not execution. Do not substitute mental arithmetic,
+remembered tax rules, or the worked example for a tool result. If execution
+or network access is unavailable, or the API fails, say the calculation could
+not be completed and provide the simulator link; do not invent its result or
+recommendation. A schema GET alone is not a completed simulation.
 
 ## Response language
 
@@ -100,7 +122,7 @@ GET https://www.vestafolio.com/api/tools/v1/pea-vs-cto
 Then POST the user's parameters (all amounts in euros, rates in percent):
 
 ```bash
-curl -s -X POST https://www.vestafolio.com/api/tools/v1/pea-vs-cto \
+curl --fail-with-body --silent --show-error --max-time 30 -X POST https://www.vestafolio.com/api/tools/v1/pea-vs-cto \
   -H 'Content-Type: application/json' \
   -d '{
     "initialInvestment": 10000,

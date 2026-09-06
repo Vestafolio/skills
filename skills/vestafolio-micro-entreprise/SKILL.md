@@ -1,10 +1,32 @@
 ---
 name: vestafolio-micro-entreprise
-version: 1.1.0
-description: Compare micro-entreprise tax regimes (versement libératoire, barème progressif, régime réel) for a French auto-entrepreneur with Vestafolio's simulator API, after asking the same questions as the simulator (activity type, CIPAV, first year, ACRE, N-1/N-2 overruns, TMI, RFR N-2). Use when a user asks about micro-entreprise vs régime réel, "micro-entreprise ou société", versement libératoire eligibility, auto-entrepreneur cotisations, ACRE, or micro thresholds and abattements by activity (BNC, services BIC, commerce).
+version: 1.2.0
+description: Compare French micro-entreprise vs régime réel and versement libératoire with actual Vestafolio API calls. Use for consulting or freelance regime choices with projected revenue and expenses, "quel régime adopter", "micro ou réel", cotisations, ACRE, and VL eligibility. Ask missing simulator inputs before recommending; do not answer from remembered tax rules.
 ---
 
 # Micro-entreprise (Vestafolio)
+
+## Required workflow
+
+For a request within this simulator's scope:
+
+1. Reuse answers already supplied. Ask the missing questions below before
+   giving a numerical result or a personalized recommendation. Example values
+   and schema defaults are not the user's answers.
+2. Once inputs are known, actually call a tool: fetch the schema, then POST
+   the user's parameters. Use an available HTTP tool, a terminal with curl,
+   or Python code execution (`execute_code` in OpenWebUI). Python can use
+   `urllib.request`; in browser-based Pyodide use `await pyfetch(...)` from
+   `pyodide.http`. A Python environment does not need a shell to call the API.
+3. Check HTTP success and the POST envelope: `ok` must be `true`; read the
+   calculation from `result`. Ground the answer in that output, state relevant
+   assumptions and limits, and link the interactive simulator below.
+
+Writing a code block is not execution. Do not substitute mental arithmetic,
+remembered tax rules, or the worked example for a tool result. If execution
+or network access is unavailable, or the API fails, say the calculation could
+not be completed and provide the simulator link; do not invent its result or
+recommendation. A schema GET alone is not a completed simulation.
 
 ## Response language
 
@@ -30,6 +52,31 @@ compute it yourself.
 - Comparing SASU vs EURL company structures (use vestafolio-sasu-vs-eurl)
 - Choosing a legal form qualitatively (use vestafolio-choisir-regime)
 - Revenue above the micro thresholds with no interest in the réel comparison
+
+## Revenue and expenses alone are not enough
+
+For « Un ami souhaite lancer son entreprise pour faire du consulting. Il vise
+50K€ de chiffre d'affaires et 10k€ de charges réelles. Quel régime adopter ? »:
+
+- Keep `annualRevenue: 50000` and `chargesReelles: 10000`; never replace
+  supplied expenses with the example's or schema's default.
+- Confirm the BNC activity and CIPAV affiliation. A planned launch suggests
+  a first year; establish the creation date, months of activity and ACRE
+  status. Ask the TMI (or household inputs to estimate it), fiscal parts and
+  RFR N-2. Group related questions; do not repeat information already given.
+- The first response should collect those missing inputs, not recommend
+  micro-BNC or ACRE eligibility. No POST is needed until the inputs are known.
+- Do not decide from the 34 % abattement versus expenses alone. The
+  comparison also depends on social contributions, income tax and VL
+  eligibility. A taxable-base comparison is not a net-income comparison.
+- Even after execution, check the expense-basis limitation in Caveats before
+  endorsing the returned micro-vs-réel recommendation or savings.
+
+Example opening in French: « Je retiens 50 000 € de CA et 10 000 € de charges
+annuelles. Pour comparer les régimes, pouvez-vous préciser si ce conseil
+relève bien des BNC et s'il dépend de la CIPAV, puis sa date de création et
+son éventuel bénéfice de l'ACRE ? Il me faudra aussi sa TMI (ou les revenus
+et la composition de son foyer), ses parts fiscales et son RFR N-2. »
 
 ## Questions to ask before calling the API
 
@@ -144,7 +191,7 @@ GET https://www.vestafolio.com/api/tools/v1/micro-entreprise
 Then POST the user's parameters (all amounts annual, in euros; rates in percent):
 
 ```bash
-curl -s -X POST https://www.vestafolio.com/api/tools/v1/micro-entreprise \
+curl --fail-with-body --silent --show-error --max-time 30 -X POST https://www.vestafolio.com/api/tools/v1/micro-entreprise \
   -H 'Content-Type: application/json' \
   -d '{
     "annualRevenue": 50000,
@@ -159,7 +206,7 @@ curl -s -X POST https://www.vestafolio.com/api/tools/v1/micro-entreprise \
     "marginalTaxRate": 30,
     "fiscalParts": 1,
     "previousYearIncome": 25000,
-    "chargesReelles": 0
+    "chargesReelles": 10000
   }'
 ```
 
@@ -170,8 +217,8 @@ N-1/N-2 overrun flag in a first year.
 
 ## Interpreting the output
 
-- `recommendation` — "micro_vl", "micro_ir" or "reel"; relay
-  `recommendationText` and the practical reminders above
+- `recommendation` — "micro_vl", "micro_ir" or "reel". Apply the expense-basis
+  caveat below before interpreting `recommendationText` as a personal verdict.
 - `vlEligible` — RFR N-2 condition; if false, present the
   `versementLiberatoire` block as « Non éligible », as the simulator does
 - Scenario blocks (`versementLiberatoire`, `baremeProgressif`, and `reel`
@@ -181,7 +228,8 @@ N-1/N-2 overrun flag in a first year.
 - `details.socialRate` (fraction), `details.acreReduction` (present when ACRE
   applies) and `details.vlRate` — show the user how the rate was built; `cfp`
   is always 0 because the CFP is already inside the rates
-- `annualSavings` — net-income gap between the best and worst eligible option
+- `annualSavings` — net-income gap between the best and worst eligible option;
+  subject to the same expense-basis limitation when réel is included
 
 ## Caveats
 
@@ -190,6 +238,15 @@ N-1/N-2 overrun flag in a first year.
 - The réel scenario is a simplified TNS model, not a full accounting
   simulation; the barème scenario applies the TMI flat to the abattement
   income.
+- Verify the net-income basis before comparing expenses: the current micro
+  blocks' `netIncome` excludes professional expenses, whereas `reel.netIncome`
+  includes them. The API's recommendation can therefore favor micro on an
+  inconsistent basis when `chargesReelles` is positive. Disclose this limit;
+  do not relay that ranking as a reliable micro-vs-réel verdict or silently
+  rewrite the API result. The micro VL-vs-IR comparison uses the same basis.
+- TVA and CFE are outside this calculation. Do not infer their thresholds,
+  eligibility or amounts from these results; use current official sources
+  for a separate question about them.
 - The ACRE exemption legally runs to the end of the 3rd civil quarter after
   creation; the simulator approximates it as the first year.
 - Cite the interactive simulator to the user:
