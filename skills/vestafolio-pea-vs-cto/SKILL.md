@@ -1,7 +1,7 @@
 ---
 name: vestafolio-pea-vs-cto
-version: 1.0.0
-description: Compare PEA, CTO (compte-titres) and assurance-vie net-of-tax outcomes for a French investor using Vestafolio's simulator API. Use when a user asks which investment envelope to choose, about PEA vs CTO taxation, flat tax (PFU) on investments, assurance-vie abattement, or where to invest monthly savings in France.
+version: 1.1.0
+description: Compare PEA, CTO (compte-titres) and assurance-vie net-of-tax outcomes for a French investor using Vestafolio's simulator API, after asking the simulator's questions (initial capital, monthly contribution, TMI, holding period, expected return, assurance-vie fees). Use when a user asks which investment envelope to choose, about PEA vs CTO taxation, flat tax (PFU) on investments, assurance-vie abattement, the 150 000 € PEA ceiling, or where to invest monthly savings in France.
 ---
 
 # PEA vs CTO vs Assurance-vie (Vestafolio)
@@ -12,7 +12,9 @@ Reply in French whenever the user speaks or writes in French.
 
 Computes the net-after-tax capital of the same investment plan (initial amount +
 monthly contributions) held in a PEA, a CTO or an assurance-vie, with
-year-by-year projections, break-even years and a recommendation.
+year-by-year projections, break-even years, warnings and a recommendation.
+The rules below are the ones coded in the simulator; use them to explain,
+and the API to compute.
 
 ## When to use
 
@@ -26,19 +28,66 @@ year-by-year projections, break-even years and a recommendation.
 - Real-estate investing (use the immobilier skills instead)
 - Pure compound-interest math without tax (use vestafolio-interets-composes)
 
-## French tax context (as coded in the simulator, 2026)
+## Questions to ask before calling the API
 
-- PEA and CTO: prélèvements sociaux at 18.6 %. PEA is exempt from income tax
-  after 5 years (before that, PFU 31.4 % applies on gains at withdrawal).
-- CTO: PFU 31.4 % or progressive barème depending on marginal rate (TMI) — the
-  simulator picks the more favourable option.
-- Assurance-vie: PFU 30 % (12.8 % IR + 17.2 % PS) before 8 years; after 8
-  years, annual abattement of 4 600 € (9 200 € for a couple) and reduced 7.5 %
-  IR under 150 000 € of premiums. Management fees reduce returns every year.
-- PEA contribution ceiling: 150 000 € — excess contributions overflow to CTO in
-  the simulation.
+The simulator asks these inputs, in this order (card « Paramètres
+d'investissement »). Ask or confirm each in French before computing.
 
-Use this context to sanity-check results, not to compute yourself — call the API.
+1. « Capital initial » → `initialInvestment`. Simulator warning above
+   150 000 €: « Le plafond de versement PEA est de 150 000 €. L'excédent
+   devra être placé en CTO. »
+2. « Versement mensuel » → `monthlyContribution`.
+3. « Tranche marginale d'imposition (TMI) » (gate) → `marginalTaxRate`, one
+   of « 0% (jusqu'à 11 600 €) », « 11% (de 11 601 € à 29 579 €) », « 30% (de
+   29 580 € à 84 577 €) », « 41% (de 84 578 € à 181 917 €) », « 45% (au-delà
+   de 181 917 €) » — the bounds are the quotient familial per part. It only
+   drives the CTO barème option, so ask it before comparing PEA and CTO.
+4. « Durée de détention » (gate) → `holdingPeriodYears` (1 to 50). Below 5
+   years the simulator warns « Avant 5 ans, le PEA perd son avantage fiscal »
+   and switches to the « Horizon court : fiscalité identique » verdict.
+5. « Rendement annuel estimé » → `annualReturn` (percent, 0 to 15 on the
+   site).
+6. « Frais de gestion assurance vie » → `avManagementFees` (percent per year;
+   simulator helper: « Courtiers en ligne : 0,5-0,8%. Banques : 0,8-1,5%. »).
+7. `isCouple` — the web simulator does not ask it and always uses the single
+   4 600 € assurance-vie abattement; the API accepts it. Ask « Êtes-vous en
+   couple soumis à imposition commune ? » whenever the horizon is 8 years or
+   more (the abattement doubles to 9 200 €), and say that the website assumes
+   a single declarant.
+
+## Rules and rates as coded in the simulator (2026)
+
+- Gross capital: monthly compounding of `annualReturn` / 12 on the initial
+  amount and the monthly contributions; the assurance-vie compounds at
+  return − fees.
+- PEA: 18,6 % prélèvements sociaux on gains; before 5 years also 12,8 % IR
+  (PFU 31,4 % in total).
+- CTO: 18,6 % PS plus the cheaper of 12,8 % IR (PFU) or gains × TMI (barème
+  option, no abattement) — at TMI 0 % the CTO equals the PEA after 5 years
+  and `taxSavings` is 0.
+- Assurance-vie: before 8 years 12,8 % IR + 17,2 % PS (30 %); from 8 years,
+  17,2 % PS on the whole gain and 7,5 % IR on the gain above the abattement
+  (4 600 €, 9 200 € with `isCouple`), 12,8 % instead of 7,5 % when the
+  contract value exceeds 150 000 €.
+- PEA ceiling: 150 000 € of total contributions (initial + monthly × 12 ×
+  years). Above it the `allocation` block splits the plan into a PEA up to
+  the ceiling and a CTO for the surplus (`combinedCapitalNet`) and a warning
+  is issued.
+- `breakEvenYears`: first year ≥ 5 where the PEA net value beats the CTO;
+  `avBreakEvenYears`: first year ≥ 8 where the assurance-vie beats the CTO.
+- `recommendation` is rule-based, not a net-capital ranking: `both` (PEA +
+  CTO) when the horizon is under 5 years or the ceiling is exceeded,
+  otherwise `pea`; it never returns `cto` or `av`. The website states the
+  same: from 5 years « le PEA permet une économie de X par rapport au CTO
+  (18,6% PS vs PFU 31,4%) » (or « le PEA et le CTO sont équivalents » when
+  `taxSavings` is 0) and, from 8 years, « L'assurance vie bénéficie aussi
+  d'un abattement après 8 ans, mais les frais de gestion réduisent
+  l'avantage ». It then highlights the envelope with the highest net
+  capital — compare `capitalNet` of the three yourself and say which is
+  highest.
+- Warnings (French, in `warnings`): total contributions above the ceiling,
+  horizon under 5 years (PEA taxed like the CTO), horizon under 8 years
+  (assurance-vie at PFU 30 %, abattement only after 8 years).
 
 ## How to call the API
 
@@ -66,20 +115,31 @@ curl -s -X POST https://www.vestafolio.com/api/tools/v1/pea-vs-cto \
 
 Unknown fields are rejected (strict schema) — if you get a `validation_error`,
 re-read the schema from the GET endpoint rather than guessing field names.
+`marginalTaxRate` must be exactly 0, 11, 30, 41 or 45.
 
 ## Interpreting the output
 
-- `result.recommendation` — the envelope with the best net outcome
-- Per-envelope blocks (`pea`, `cto`, `assuranceVie`): gross vs net capital,
-  total tax paid, effective tax rate
-- Break-even fields — the year from which one envelope overtakes another;
-  highlight these when the user's horizon is near a threshold (5 or 8 years)
-- Year-by-year projections — use for "what if I stop after N years" follow-ups
+- `pea`, `cto`, `av` — `capitalFinal`, `totalGains`, `taxOnGains`,
+  `socialContributions`, `totalTax`, `capitalNet` (the comparison figure),
+  `effectiveTaxRate`
+- `taxSavings` — PEA tax saving versus the CTO (negative if the CTO wins);
+  `avSavingsVsCTO` — CTO net minus assurance-vie net
+- `allocation` — the PEA + CTO split when `exceedsCeiling` is true; present
+  `combinedCapitalNet` instead of `pea.capitalNet` in that case, as the site
+  does
+- `recommendation`, `breakEvenYears`, `avBreakEvenYears` — see the rules
+  above; highlight the 5-year and 8-year thresholds when the horizon is near
+- `projections` — year-by-year net values, for "what if I stop after N years"
+- `warnings` — relay them in French
 
 ## Caveats
 
-- Rules as coded for 2026; rates change with finance laws. Not tax advice —
-  say so.
-- The simulation assumes constant returns and contributions.
+- Rules as coded for 2026 (18,6 % PS on PEA and CTO, 17,2 % on the
+  assurance-vie); rates change with finance laws. Not tax advice — say so.
+- The simulation assumes constant returns and contributions, and a lump-sum
+  withdrawal at the end of the horizon.
+- The website also reminds users that a PEA only holds European equities and
+  eligible funds, that a CTO has no ceiling, and that the assurance-vie adds
+  a 152 500 € per-beneficiary transmission abattement not modeled here.
 - Cite the interactive simulator to the user:
   https://www.vestafolio.com/simulateurs/pea-vs-cto

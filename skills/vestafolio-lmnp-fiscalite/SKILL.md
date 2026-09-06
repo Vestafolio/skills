@@ -1,7 +1,7 @@
 ---
 name: vestafolio-lmnp-fiscalite
-version: 1.0.0
-description: Compare LMNP furnished-rental taxation between micro-BIC and régime réel with amortization using Vestafolio's simulator API. Use when a user asks "LMNP micro-BIC ou réel", how furnished rental income is taxed in France, about the 50 % / 30 % abattement, meublé de tourisme thresholds, building/furniture amortization, or which LMNP regime saves more tax.
+version: 1.1.0
+description: Compare LMNP furnished-rental taxation between micro-BIC and régime réel with amortization using Vestafolio's simulator API, after asking the simulator's questions (furnished or not, rents, type of meublé, purchase price, notary fees, furniture, works, TMI, annual charges). Use when a user asks "LMNP micro-BIC ou réel", how furnished rental income is taxed in France, about the 50 % / 30 % abattement, meublé de tourisme thresholds, building/furniture amortization, or which LMNP regime saves more tax.
 ---
 
 # LMNP : micro-BIC vs régime réel (Vestafolio)
@@ -13,7 +13,8 @@ Reply in French whenever the user speaks or writes in French.
 Compares the taxation of a location meublée non professionnelle (LMNP) under
 the micro-BIC (flat abattement) and the régime réel (real charges plus
 amortization), with the recommended regime, annual and 10-year savings, and a
-10-year amortization schedule.
+10-year amortization schedule. The rules below are the ones coded in the
+simulator; use them to explain, and the API to compute.
 
 ## When to use
 
@@ -29,20 +30,54 @@ amortization), with the recommended regime, annual and 10-year savings, and a
 - Capital gains on the sale of the LMNP property (use
   vestafolio-impot-plus-value)
 
-## French tax context (as coded in the simulator, Loi de Finances 2025)
+## Questions to ask before calling the API
 
-- Micro-BIC: 50 % abattement and 83 600 € revenue threshold for standard
-  furnished rentals and meublés de tourisme classés; 30 % abattement and
-  15 000 € threshold for tourisme non classé. Above the threshold, micro-BIC
-  is ineligible and the réel applies.
-- Régime réel: real charges deducted, plus amortization of the building over
-  30 years (85 % of value — the 15 % land share is not amortizable), furniture
-  over 7 years, and works over 10 years. Amortization cannot create a deficit;
-  the excess is carried forward.
-- Prélèvements sociaux at 18.6 % on the taxable result; income tax at the
-  household's TMI.
+The simulator opens with a gate, then one form. Ask or confirm each in
+French; do not assume a default for a question marked (gate).
 
-Use this context to sanity-check results, not to compute yourself — call the API.
+1. « Votre bien est-il loué meublé ? » (gate) — « Oui, location meublée » /
+   « Non, location nue (vide) ». For a location nue the site refuses to
+   compute and redirects to the micro-foncier simulator: switch to
+   vestafolio-micro-foncier-vs-reel. (Reminder shown by the site: « Une
+   location meublée doit comporter au minimum les équipements définis par le
+   décret n°2015-981. »)
+2. « Loyers annuels » → `annualRent` (charges comprises).
+3. « Type de location » (gate) → `propertyType`: « Meublé classique
+   (abattement 50%) » = `standard`, « Meublé tourisme classé (abattement
+   50%) » = `tourisme_classe`, « Meublé tourisme non classé (abattement
+   30%) » = `tourisme_non_classe`. It sets the micro-BIC threshold: 83 600 €
+   for the first two, 15 000 € for the last.
+4. « Prix d'achat (hors crédit) » → `purchasePrice`, « Frais notaire » →
+   `notaryFees`, « Mobilier » → `furnitureCosts`, « Travaux » →
+   `renovationCosts` (the amortization bases).
+5. « Tranche marginale (TMI) » → `marginalTaxRate`, one of 0, 11, 30, 41, 45
+   (estimate it with vestafolio-impot-revenu if unknown).
+6. « Charges annuelles » (the site opens this section by default) →
+   `charges`: « Intérêts emprunt » `loanInterest`, « Taxe foncière »
+   `propertyTax`, « Copropriété » `condoFees`, « Assurance PNO »
+   `insurance`, « Gestion » `managementFees`, « Comptable » `accounting`,
+   « Entretien » `entretien`. Ask for each; use 0 when the user has none.
+
+## Rules and rates as coded in the simulator (Loi de Finances 2025)
+
+- Micro-BIC: abattement 50 % (standard, tourisme classé) or 30 % (tourisme
+  non classé); eligible while the rents are at or below the threshold
+  (83 600 € or 15 000 €). Above it the réel is imposed.
+- Régime réel: result before amortization = rents − all charges;
+  amortization = (purchase price + notary fees) × 85 % / 30 years (the 15 %
+  land share is not amortizable) + furniture / 7 years + works / 10 years;
+  it is only used up to the positive result (never creates a deficit), the
+  excess is carried forward.
+- Both regimes: impôt = taxable income × TMI; prélèvements sociaux 18,6 % on
+  the taxable income; net income = rents − charges − taxes (amortization is
+  non-cash).
+- Recommendation: `reel` when micro-BIC is ineligible, otherwise the regime
+  with the strictly lower total tax (a tie recommends micro-BIC);
+  `annualSavings` = absolute tax gap, `tenYearSavings` = × 10 with constant
+  figures.
+- Site wording: « Vos loyers dépassent le seuil Micro-BIC (…). Le régime
+  réel est obligatoire. », « Économie annuelle : X / Sur 10 ans : Y », or
+  « Les deux régimes sont équivalents pour votre situation. »
 
 ## How to call the API
 
@@ -60,10 +95,12 @@ curl -s -X POST https://www.vestafolio.com/api/tools/v1/lmnp-fiscalite \
   -H 'Content-Type: application/json' \
   -d '{
     "annualRent": 15000,
+    "propertyType": "standard",
     "purchasePrice": 200000,
     "notaryFees": 16000,
     "furnitureCosts": 8000,
     "renovationCosts": 10000,
+    "marginalTaxRate": 30,
     "charges": {
       "loanInterest": 4000,
       "propertyTax": 1200,
@@ -72,9 +109,7 @@ curl -s -X POST https://www.vestafolio.com/api/tools/v1/lmnp-fiscalite \
       "managementFees": 0,
       "accounting": 500,
       "entretien": 300
-    },
-    "marginalTaxRate": 30,
-    "propertyType": "standard"
+    }
   }'
 ```
 
@@ -83,15 +118,17 @@ re-read the schema from the GET endpoint rather than guessing field names.
 
 ## Interpreting the output
 
-- `recommendation` — `micro_bic` or `reel`, whichever minimizes tax (réel is
-  forced if micro-BIC is ineligible; check `isEligible` / `eligibilityReason`)
-- `annualSavings` and `tenYearSavings` — the tax gap between regimes; lead
-  with these when answering "which regime"
+- `recommendation` — `micro_bic` or `reel`; check `microBic.isEligible` /
+  `eligibilityReason` to say whether the réel was imposed
+- `annualSavings` and `tenYearSavings` — lead with these when answering
+  "which regime"
 - Per-regime blocks (`microBic`, `reel`): `taxableIncome`, `incomeTax`,
   `socialContributions`, `totalTax`, `netIncome`, `effectiveRate`
 - `details` — abattement and threshold in micro-BIC; charges, per-asset
-  amortization, used vs carried amortization in réel
-- `amortizationSchedule` — 10-year plan showing used vs carried amortization;
+  amortization (`buildingAmort`, `furnitureAmort`, `renovationAmort`),
+  `usedAmort` vs `carriedAmort` in réel (the site shows « X d'amortissements
+  reportés (revenu déjà à 0) »)
+- `amortizationSchedule` — 10-year plan (furniture stops after year 7);
   a large `cumulativeCarried` means the réel advantage persists beyond year 10
 
 ## Caveats

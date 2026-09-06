@@ -1,7 +1,7 @@
 ---
 name: vestafolio-achat-vs-location
-version: 1.0.0
-description: Compare final net wealth between buying a primary residence with a mortgage and renting while investing savings, over a chosen horizon, using Vestafolio's simulator API. Use when a user asks whether to buy or rent, "acheter ou louer", "est-ce rentable d'acheter ma résidence principale", rent vs buy break-even, or what owning really costs versus renting in France.
+version: 1.1.0
+description: Compare final net wealth between buying a primary residence with a mortgage and renting while investing savings, over a chosen horizon, using Vestafolio's simulator API, after asking the simulator's questions (available savings first, market assumptions, purchase scenario, rent scenario). Use when a user asks whether to buy or rent, "acheter ou louer", "est-ce rentable d'acheter ma résidence principale", rent vs buy break-even, or what owning really costs versus renting in France.
 ---
 
 # Acheter vs louer (Vestafolio)
@@ -14,7 +14,8 @@ Compares the final net wealth of buying a primary residence with a mortgage
 versus staying a tenant and investing the savings, simulated month by month
 over a chosen horizon: loan amortization, property appreciation, rent
 increases, taxe foncière (indexed at 3 %/year) and capitalization of invested
-savings.
+savings. The model below is the one coded in the simulator; use it to
+explain, and the API to compute.
 
 ## When to use
 
@@ -32,30 +33,95 @@ savings.
   vestafolio-credit-immobilier
 - Choosing where to invest the savings themselves — use vestafolio-pea-vs-cto
 
-## French housing context (as coded in the simulator)
+## Questions to ask before calling the API
 
-- Buy scenario: `availableSavings` funds the apport (purchasePrice −
-  loanAmount), the frais de notaire (`notaryFeePercent` of the price, e.g.
-  7.5 % in the ancien) and the travaux; whatever savings remain are invested
-  at `investmentReturnBuy`. The owner pays the mortgage (annuity, no
-  insurance) plus taxe foncière indexed at 3 %/year.
-- Rent scenario: the full `availableSavings` are invested at
-  `investmentReturn`; rent grows at `rentIncreaseRate` per year.
-- Fair comparison rule: each year, whichever side has the lower housing
-  outflow invests the difference as an effort d'épargne — the owner's outflow
-  is mensualités + taxe foncière, compared against the rent
-  (`additionalSavingsInvested` on both sides). Savings interest starts
-  compounding in Year 2; an effort saved in year N earns interest from N+1.
-- Net wealth at horizon (buy) = sale proceeds (property value − outstanding
-  principal, repaid at sale when the horizon ends before the loan) −
-  cumulated expenses (taxe foncière and loan interest every year) +
-  investment portfolio (savings after down payment, notary fees and works —
-  acquisition costs counted once — plus efforts and interest). Intermediate
-  years value the stake as property value × repaid share of the loan.
-- Net wealth at horizon (rent) = investment portfolio (full savings +
-  efforts + interest) − cumulated rents paid.
+The simulator asks these inputs, in this order, and starts with the savings
+on purpose: they bound the loan share and the works budget. Ask or confirm
+each in French before computing.
 
-Use this context to sanity-check results, not to compute yourself — call the API.
+« Hypothèses de marché »
+
+1. « Épargne disponible actuellement » (gate) → `availableSavings`. It funds
+   the apport, the notary fees and the works in the buy scenario and is fully
+   invested in the rent scenario.
+2. « Ville » — not sent to the API; the simulator uses it to suggest the
+   appreciation, rent-increase and taxe foncière assumptions below. Ask it
+   when the user has no own assumptions.
+3. « Appréciation immobilière » → `propertyAppreciation` (%/an). Simulator
+   suggestions by city for a horizon ≤ 5 / ≤ 10 / > 10 years: Paris 1,5 /
+   2,5 / 3 ; Lyon 2 / 2,5 / 2,8 ; Marseille 2,5 / 2,8 / 2,5 ; Bordeaux 1,8 /
+   2,2 / 2,5 ; Toulouse 2,2 / 2,5 / 2,5 ; Nice 2 / 2,3 / 2,5 ; Nantes 2 /
+   2,5 / 2,8 ; Strasbourg 1,8 / 2,2 / 2,5 ; Montpellier 2,2 / 2,5 / 2,5 ;
+   Lille 2 / 2,3 / 2,5 ; Rennes 2,2 / 2,5 / 2,8 ; Grenoble 1,5 / 2 / 2,2 ;
+   Rouen 1,5 / 2 / 2,2 ; Toulon 2 / 2,3 / 2,5 ; Angers 2 / 2,3 / 2,5 ; other
+   city 1,5 / 2 / 2,2. Present the suggestion and let the user confirm.
+4. « Rendement placements » → `investmentReturn` (%/an) and
+   `investmentReturnBuy`: the website uses one rate for both scenarios, so
+   send the same value in both fields unless the user explicitly wants the
+   owner's leftover savings invested differently.
+5. « Horizon de projection » → `horizonYears` (1 to 30 on the site).
+
+« Scénario Achat »
+
+6. « Type de bien » (Appartement / Maison), « État » (Ancien / Neuf) and
+   « Surface » — not sent to the API; they drive the notary-fee suggestion
+   (7,5 % ancien, 2,5 % neuf) and the taxe foncière estimate (per m² per
+   year, appartement / maison: Paris 15-35 / 20-45 ; Lyon 12-25 / 15-30 ;
+   Marseille 10-22 / 12-28 ; Bordeaux 14-28 / 16-32 ; Toulouse 11-24 /
+   14-28 ; Nice 13-30 / 18-40 ; Nantes 12-24 / 14-28 ; Strasbourg 10-22 /
+   12-26 ; Montpellier 11-24 / 14-28 ; Lille 13-28 / 16-32 ; Rennes 11-23 /
+   13-27 ; Grenoble 10-22 / 12-26 ; Rouen 12-25 / 14-28 ; Toulon 11-24 /
+   14-30 ; Angers 10-20 / 12-24 ; other 8-20 / 10-25).
+7. « Prix du bien » → `purchasePrice`.
+8. « Part empruntée » → `loanAmount` = price × share. Simulator rule: « Un
+   apport minimum équivalent à 10% de la valeur du bien est exigé. Votre
+   apport + frais de notaire ne peuvent excéder l'épargne disponible. » So
+   the loan is at most 90 % of the price, and at least price − (savings −
+   notary fees). If the savings cannot cover 10 % apport plus the notary
+   fees, the simulator warns « Votre épargne disponible est insuffisante pour
+   l'apport et les frais » — tell the user before computing.
+9. « Taux crédit » → `loanRate` and « Durée emprunt » → `loanYears`.
+10. « Frais de notaire » → `notaryFeePercent` (percent of the price; 7,5 for
+    an ancien, 2,5 for a neuf — chain vestafolio-frais-notaire for an exact
+    figure).
+11. « Taxe foncière annuelle » → `taxeFonciereAnnual` (indexed at 3 %/year by
+    the simulation).
+12. « Travaux » → `travaux`, paid cash. Must not exceed savings − apport −
+    notary fees (« Maximum autorisé »); above it the website freezes the
+    simulation and the API returns a validation error with the ceiling.
+
+« Scénario Location »
+
+13. « Loyer mensuel » → `monthlyRent` (equivalent housing).
+14. « Augmentation annuelle du loyer » → `rentIncreaseRate` (%/an; simulator
+    suggestion by city: Paris 2,5 ; Lyon 2,3 ; Marseille 2 ; Bordeaux 2,2 ;
+    Toulouse 2,1 ; Nice 2,4 ; Nantes 2,3 ; Strasbourg 2 ; Montpellier 2,2 ;
+    Lille 2 ; Rennes 2,3 ; Grenoble 1,8 ; Rouen 1,8 ; Toulon 2 ; Angers 2 ;
+    other 1,8).
+
+## Model as coded in the simulator
+
+- Buy scenario: the apport (price − loan), the notary fees and the works are
+  taken from the savings once; whatever remains is invested at
+  `investmentReturnBuy`. The owner pays the mortgage (constant annuity, no
+  insurance) and the taxe foncière indexed at 3 %/year from year 1.
+- Rent scenario: the full savings are invested at `investmentReturn`; rent
+  grows at `rentIncreaseRate` from year 2.
+- Effort d'épargne: each year, whichever side has the lower housing outflow
+  (mensualités + taxe foncière for the owner, rent for the tenant) invests
+  the difference. Savings earn interest from year 2; an effort saved in year
+  N earns interest from N+1.
+- Property value = price in year 1, then appreciates each year. Intermediate
+  years value the stake as property value × repaid share of the loan; at the
+  horizon the stake is the sale proceeds (property value − outstanding
+  principal).
+- Net wealth (buy) = stake − cumulated taxe foncière − cumulated loan
+  interest + investment portfolio. Net wealth (rent) = portfolio − cumulated
+  rents.
+- `recommendation` = `buy` when the difference is strictly positive, else
+  `rent`; `breakEvenYear` = first year where the buy wealth reaches the rent
+  wealth (null if never). The website words it « L'achat génère X € de
+  plus » / « La location génère X € de plus ».
 
 ## How to call the API
 
@@ -71,20 +137,20 @@ Then POST the user's parameters (all amounts in euros, rates in percent):
 curl -s -X POST https://www.vestafolio.com/api/tools/v1/achat-vs-location \
   -H 'Content-Type: application/json' \
   -d '{
+    "availableSavings": 80000,
+    "propertyAppreciation": 3,
+    "investmentReturn": 6,
+    "investmentReturnBuy": 6,
+    "horizonYears": 20,
     "purchasePrice": 300000,
     "loanAmount": 255000,
     "loanRate": 3.5,
     "loanYears": 20,
-    "monthlyRent": 1200,
-    "rentIncreaseRate": 2,
-    "propertyAppreciation": 2,
-    "investmentReturn": 6,
-    "investmentReturnBuy": 6,
-    "horizonYears": 20,
     "notaryFeePercent": 7.5,
     "taxeFonciereAnnual": 1500,
     "travaux": 0,
-    "availableSavings": 80000
+    "monthlyRent": 1200,
+    "rentIncreaseRate": 2.5
   }'
 ```
 
@@ -96,19 +162,20 @@ endpoint rather than guessing field names.
 
 ## Interpreting the output
 
-- `result.buyWealth` / `result.rentWealth` / `result.difference` — final net
-  wealth of each scenario and their gap (positive difference = buying wins)
-- `result.recommendation` — "buy" or "rent" at the chosen horizon
-- `result.breakEvenYear` — first year where the buy scenario's wealth catches
-  up with renting, or null if never within the horizon; highlight it when the
-  user's horizon is close to it (moving before break-even favours renting)
-- `result.monthlyPayment` — the mortgage payment (hors assurance) driving the
+- `buyWealth` / `rentWealth` / `difference` — final net wealth of each
+  scenario and their gap (positive difference = buying wins)
+- `recommendation` — "buy" or "rent" at the chosen horizon
+- `breakEvenYear` — highlight it when the user's horizon is close to it
+  (moving before break-even favours renting)
+- `monthlyPayment` — the mortgage payment (hors assurance) driving the
   monthly-effort comparison
-- `result.buyDetails` / `result.rentDetails` — decomposition (property value,
-  remaining loan, cumulated interest, taxe foncière, portfolios,
-  additionalSavingsInvested); use it to explain WHY one side wins
-- `result.yearlyData` / `result.cashflowData` — year-by-year wealth curves and
-  outflows, for "what if I sell after N years" follow-ups
+- `buyDetails` / `rentDetails` — decomposition (property value, remaining
+  loan, cumulated interest and taxe foncière, portfolios,
+  additionalSavingsInvested); use it to explain WHY one side wins, like the
+  site's « Détails Achat » / « Détails Location » blocks
+- `yearlyData` / `cashflowData` — year-by-year wealth curves and outflows,
+  for "what if I sell after N years" follow-ups
+- `maxTravauxBudget` — the works ceiling for the given savings
 
 ## Caveats
 

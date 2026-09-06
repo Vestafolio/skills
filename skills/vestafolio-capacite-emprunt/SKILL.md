@@ -1,7 +1,7 @@
 ---
 name: vestafolio-capacite-emprunt
-version: 1.0.0
-description: Estimate the maximum mortgage a French household can borrow from income, existing charges and the HCSF 35 % debt ratio using Vestafolio's simulator API. Use when a user asks how much they can borrow, "combien puis-je emprunter", borrowing capacity (capacité d'emprunt), taux d'endettement, or what property budget their salary allows.
+version: 1.1.0
+description: Estimate the maximum mortgage a French household can borrow from income, existing charges and the HCSF 35 % debt ratio using Vestafolio's simulator API, after asking the simulator's questions (net household income, fixed charges, rate, duration, insurance rate). Use when a user asks how much they can borrow, "combien puis-je emprunter", borrowing capacity (capacité d'emprunt), taux d'endettement, or what property budget their salary allows.
 ---
 
 # Capacité d'emprunt (Vestafolio)
@@ -12,7 +12,8 @@ Reply in French whenever the user speaks or writes in French.
 
 Estimates the maximum amount a household can borrow for a property purchase
 from its net monthly income, existing charges, the envisaged loan rate and
-duration, and the maximum debt ratio (taux d'endettement).
+duration, and the maximum debt ratio (taux d'endettement). The formula below
+is the one coded in the simulator; use it to explain, and the API to compute.
 
 ## When to use
 
@@ -29,18 +30,36 @@ duration, and the maximum debt ratio (taux d'endettement).
 - Buy vs rent decisions — use vestafolio-achat-vs-location
 - Rental-investment profitability — use vestafolio-rentabilite-locative
 
-## French banking context (as coded in the simulator)
+## Questions to ask before calling the API
 
-- Maximum supportable payment = monthlyIncome × debtRatio / 100 −
-  monthlyCharges. The default debtRatio of 35 % is the HCSF norm in France
-  (assurance included).
-- The maximum loan is derived by inverting the annuity formula, with the
-  assurance emprunteur computed on the initial borrowed capital
-  (loan × insuranceRate / 100 / 12) and included inside the maximum payment.
-- Income is net monthly household income before tax; charges are existing
-  recurring commitments (crédits en cours, pensions).
+The simulator asks these five inputs, in this order (card « Vos revenus et
+charges »). Ask or confirm each in French.
 
-Use this context to sanity-check results, not to compute yourself — call the API.
+1. « Revenus mensuels nets » → `monthlyIncome` (« Incluez tous les revenus du
+   foyer »: net monthly income before tax of all borrowers).
+2. « Charges mensuelles existantes » → `monthlyCharges` (« Uniquement les
+   charges fixes : crédits en cours, pensions alimentaires, loyers.
+   N'incluez pas les dépenses courantes (alimentation, loisirs...). »).
+3. « Taux d'emprunt » → `rate` (percent; the site allows 0 to 10).
+4. « Durée du prêt » → `years` (the site allows 5 to 25).
+5. « Taux d'assurance emprunteur » → `insuranceRate` (« Taux annuel moyen :
+   0,25% à 0,40% selon l'âge et l'état de santé »).
+6. `debtRatio` — the website does not ask it and always applies the 35 %
+   HCSF norm. Keep 35 unless the user explicitly wants to test another ratio.
+
+## Formula as coded in the simulator
+
+- Maximum payment (crédit + assurance) = income × debtRatio / 100 − charges.
+  With no income, or charges already above the ratio, everything is 0.
+- Insurance is computed on the initial borrowed capital: monthly insurance =
+  loan × insuranceRate / 100 / 12, and sits inside the maximum payment.
+- Maximum loan = maximum payment / (annuity factor of the monthly rate over
+  years × 12 + monthly insurance rate) — the annuity formula inverted.
+- `currentDebtRatio` = (charges + maximum payment) / income: by construction
+  it equals the ratio (35 %) whenever something can be borrowed.
+- Site disclaimer: « Calcul basé sur un taux d'endettement maximal de 35%
+  (règles HCSF). Le montant final dépendra de l'analyse de votre dossier par
+  la banque. »
 
 ## How to call the API
 
@@ -57,7 +76,7 @@ curl -s -X POST https://www.vestafolio.com/api/tools/v1/capacite-emprunt \
   -H 'Content-Type: application/json' \
   -d '{
     "monthlyIncome": 4000,
-    "monthlyCharges": 0,
+    "monthlyCharges": 300,
     "rate": 3.5,
     "years": 20,
     "insuranceRate": 0.3,
@@ -70,14 +89,16 @@ re-read the schema from the GET endpoint rather than guessing field names.
 
 ## Interpreting the output
 
-- `result.maxLoan` — the headline number: maximum borrowable capital in euros
-- `result.maxMonthlyPayment` — the payment ceiling (crédit + assurance) implied
-  by the debt ratio
-- `result.monthlyInsurance` — estimated insurance share of that payment
-- `result.currentDebtRatio` — debt ratio reached at that payment, in percent;
-  useful when the user has existing charges pushing them near 35 %
+- `maxLoan` — the headline number: maximum borrowable capital in euros
+- `maxMonthlyPayment` — the payment ceiling implied by the debt ratio,
+  insurance included (the site shows it as « Mensualité »)
+- `monthlyInsurance` — estimated insurance share of that payment
+- `currentDebtRatio` — debt ratio reached at that payment, in percent; only
+  informative when existing charges already exceed the ratio
 - To translate maxLoan into a property budget, add the apport and subtract
-  frais de notaire (vestafolio-frais-notaire)
+  frais de notaire (vestafolio-frais-notaire). The site also shows how the
+  capacity moves with the duration (5 to 25 years) and with a rate
+  negotiated 0,5 or 1 point lower — offer those variants.
 
 ## Caveats
 

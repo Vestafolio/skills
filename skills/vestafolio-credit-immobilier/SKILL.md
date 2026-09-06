@@ -1,7 +1,7 @@
 ---
 name: vestafolio-credit-immobilier
-version: 1.0.0
-description: Compute French mortgage monthly payments (insurance included), total interest and the full amortization schedule using Vestafolio's simulator API. Use when a user asks about mortgage payments, loan cost, "quelle mensualité pour un crédit immobilier", "combien coûte un prêt de 250 000 €", amortization tables (tableau d'amortissement), or assurance emprunteur cost.
+version: 1.1.0
+description: Compute French mortgage monthly payments (insurance included), total interest and the full amortization schedule using Vestafolio's simulator API, after asking the simulator's questions (amount borrowed, annual rate, duration, insurance rate). Use when a user asks about mortgage payments, loan cost, "quelle mensualité pour un crédit immobilier", "combien coûte un prêt de 250 000 €", amortization tables (tableau d'amortissement), or assurance emprunteur cost.
 ---
 
 # Crédit immobilier (Vestafolio)
@@ -13,6 +13,7 @@ Reply in French whenever the user speaks or writes in French.
 Computes the monthly payment (assurance emprunteur included), the total cost of
 credit, total interest, total insurance and the complete month-by-month
 amortization schedule for a fixed-rate French mortgage with constant payments.
+The conventions below are the ones coded in the simulator.
 
 ## When to use
 
@@ -28,17 +29,29 @@ amortization schedule for a fixed-rate French mortgage with constant payments.
 - Buy vs rent decisions — use vestafolio-achat-vs-location
 - Notary/closing costs of the purchase — use vestafolio-frais-notaire
 
-## French banking context (as coded in the simulator)
+## Questions to ask before calling the API
 
-- Fixed-rate, constant-payment loan: the crédit part of the payment follows the
-  standard annuity formula on the monthly rate (annualRate / 12).
-- Assurance emprunteur is computed on the initial capital (capital initial),
-  the common French bank convention: monthly insurance =
-  principal × insuranceRate / 100 / 12, constant over the whole loan.
-- The schedule shows, for each month, the payment, the principal repaid, the
-  interest paid and the capital restant dû.
+The simulator asks these four inputs, in this order (card « Paramètres du
+prêt »). Ask or confirm each in French.
 
-Use this context to sanity-check results, not to compute yourself — call the API.
+1. « Montant emprunté » → `principal` — the capital borrowed, not the
+   property price (apport and notary fees are outside this tool).
+2. « Taux annuel » → `annualRate` (nominal percent; the site allows 0 to 15).
+3. « Durée » → `durationYears` (the site allows 5 to 25).
+4. « Taux assurance » → `insuranceRate` (annual percent of the initial
+   capital; 0 if the user wants the payment hors assurance).
+
+## Conventions as coded in the simulator
+
+- Fixed-rate, constant-payment loan: the crédit part of the payment follows
+  the standard annuity formula on the monthly rate (annualRate / 12); at 0 %
+  it is principal / months.
+- Assurance emprunteur on the initial capital: monthly insurance = principal
+  × insuranceRate / 100 / 12, constant over the whole loan.
+- `monthlyPayment` includes the insurance; `totalPayment` = monthly payment ×
+  months; `totalInterest` = total payment − principal − total insurance.
+- The site also shows « Coût du crédit » = interest + insurance and
+  « Surcoût » = that cost as a percent of the principal.
 
 ## How to call the API
 
@@ -66,14 +79,14 @@ re-read the schema from the GET endpoint rather than guessing field names.
 
 ## Interpreting the output
 
-- `result.monthlyPayment` — total monthly payment, insurance included; also
-  provided split as `monthlyPaymentWithoutInsurance` + `monthlyInsurance`
-- `result.totalPayment` — total cost of the credit over the full duration
-- `result.totalInterest` / `result.totalInsurance` — the two cost components
-  beyond the capital; useful to show what the loan really costs
-- `result.schedule` — full monthly amortization table (month, payment,
-  principal, interest, remainingBalance); use it for "how much will I still owe
-  after N years" follow-ups rather than recomputing
+- `monthlyPayment` — total monthly payment, insurance included; say so, and
+  give the split `monthlyPaymentWithoutInsurance` + `monthlyInsurance`
+- `totalPayment` — total cost of the credit over the full duration
+- `totalInterest` / `totalInsurance` — the two cost components beyond the
+  capital; useful to show what the loan really costs
+- `schedule` — full monthly amortization table (month, payment, principal,
+  interest, remainingBalance); use it for "how much will I still owe after N
+  years" follow-ups rather than recomputing
 
 ## Caveats
 

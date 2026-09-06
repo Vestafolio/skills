@@ -39,6 +39,18 @@ an example, the build fails before the skill is published.
 
 ## Conventions
 
+- **Ask before computing.** Each skill carries a "Questions to ask before
+  calling the API" checklist that mirrors the questions the web simulator asks,
+  in the same order and with the same conditions (e.g. the micro-entreprise
+  simulator asks whether the business benefits from ACRE, and only in its
+  first year, before any computation). Agents must collect or confirm those
+  answers instead of silently assuming defaults. CI checks that every input
+  field of a simulator's schema is covered by its skill.
+- **Rates come from the simulator code, nowhere else.** The tax rules and
+  constants quoted in each skill (prélèvements sociaux, seuils, abattements,
+  barèmes...) are the ones coded in Vestafolio's calculators, so that an
+  agent's explanations always match the numbers the API returns. Skills only
+  bring in outside data for topics the simulators do not cover, and say so.
 - All amounts are in euros; rates in percent unless the schema says otherwise.
 - Results reflect the French tax rules coded in the simulators (barèmes
   2025-2026) and are estimates, not tax advice.

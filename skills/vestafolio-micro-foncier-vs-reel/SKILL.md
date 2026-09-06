@@ -1,7 +1,7 @@
 ---
 name: vestafolio-micro-foncier-vs-reel
-version: 1.0.0
-description: Compare unfurnished rental taxation between micro-foncier and régime réel with déficit foncier using Vestafolio's simulator API. Use when a user asks "micro-foncier ou régime réel", how location nue rental income is taxed in France, about the 30 % abattement, the 15 000 € micro-foncier ceiling, déficit foncier imputation on global income, or which regime saves more tax on revenus fonciers.
+version: 1.1.0
+description: Compare unfurnished rental taxation between micro-foncier and régime réel with déficit foncier using Vestafolio's simulator API, after asking the simulator's questions (unfurnished or not, gross rents, six charge lines, TMI, prior deficit). Use when a user asks "micro-foncier ou régime réel", how location nue rental income is taxed in France, about the 30 % abattement, the 15 000 € micro-foncier ceiling, déficit foncier imputation on global income, or which regime saves more tax on revenus fonciers.
 ---
 
 # Micro-foncier vs régime réel (Vestafolio)
@@ -13,7 +13,8 @@ Reply in French whenever the user speaks or writes in French.
 Compares the taxation of an unfurnished rental (location nue) under the
 micro-foncier (flat 30 % abattement) and the régime réel (real charges and
 déficit foncier), with the recommended regime, annual savings and the
-break-even charges level.
+break-even charges level. The rules below are the ones coded in the
+simulator; use them to explain, and the API to compute.
 
 ## When to use
 
@@ -28,19 +29,53 @@ break-even charges level.
 - Property capital gains on sale (use vestafolio-impot-plus-value)
 - Non-French rental income
 
-## French tax context (as coded in the simulator, 2025-2026)
+## Questions to ask before calling the API
 
-- Micro-foncier: flat 30 % abattement, eligible only up to 15 000 € of annual
-  gross rents.
-- Régime réel: real charges deducted (loan interest, taxe foncière, condo
-  fees, insurance, management, repairs). A déficit foncier is imputable on
-  global income up to 10 700 € per year — loan interest excluded from that
-  imputation — and the remainder is carried forward against future revenus
-  fonciers for 10 years.
-- Taxable result bears income tax at the household's TMI plus prélèvements
-  sociaux at 17.2 %.
+The simulator opens with a gate, then three tabs. Ask or confirm each in
+French; do not assume a default for a question marked (gate).
 
-Use this context to sanity-check results, not to compute yourself — call the API.
+1. « Votre bien est-il loué vide (non meublé) ? » (gate) — « Oui, location
+   nue (vide) » / « Non, location meublée ». For a meublé the site refuses to
+   compute and redirects to the LMNP simulator: switch to
+   vestafolio-lmnp-fiscalite.
+2. Tab « Revenus » — « Loyers bruts annuels » → `annualRent` (« Seuil
+   micro-foncier : 15 000 € »; above it the site warns « Vous dépassez le
+   seuil du micro-foncier »).
+3. Tab « Charges » → `charges`: « Intérêts d'emprunt » `loanInterest`,
+   « Taxe foncière » `propertyTax`, « Charges de copropriété » `condoFees`
+   (non-recoverable), « Assurance PNO » `insurance`, « Frais de gestion »
+   `managementFees`, « Travaux et réparations » `repairs`. Ask for each; the
+   site's defaults (3 000 € interest, 1 200 € tax, 1 800 € copropriété…) are
+   placeholders, not the user's figures. The site shows the charges ratio and
+   the break-even (30 % of rents) next to them.
+4. Tab « Situation fiscale » — « Tranche marginale d'imposition (TMI) »
+   (gate) → `marginalTaxRate`, one of 0, 11, 30, 41, 45 (estimate it with
+   vestafolio-impot-revenu if unknown), and « Déficit foncier antérieur » →
+   `existingDeficit` (« Déficit foncier des années précédentes reportable sur
+   les revenus fonciers pendant 10 ans. », 0 if none).
+
+## Rules and rates as coded in the simulator (2025-2026)
+
+- Micro-foncier: abattement 30 %, eligible while rents ≤ 15 000 €; taxable =
+  70 % of rents.
+- Régime réel: result = rents − the six charges. A prior deficit is imputed
+  on a positive result (the remainder stays carried forward). When the
+  result is negative, the deficit created is imputed on global income up to
+  the loan-interest amount and at most 10 700 €; the rest is carried forward
+  against future revenus fonciers for 10 years, and the taxable income is 0.
+  The imputed part yields a saving of (TMI + 17,2 %) × amount, added to the
+  réel net income.
+- Both regimes: impôt = taxable × TMI; prélèvements sociaux 17,2 % on the
+  taxable income.
+- `breakEvenCharges` = 30 % of the rents: above it the réel taxes less.
+- Recommendation: `regime_reel` when micro-foncier is ineligible, when the
+  réel total tax is lower, or when a deficit is imputable on global income;
+  otherwise `micro_foncier`. `annualSavings` = micro tax − réel tax, floored
+  at 0.
+- Site wording: « Régime réel obligatoire — Vos loyers dépassent le seuil de
+  15 000 €. », « Régime réel recommandé / Micro-foncier recommandé — Économie
+  de X/an » or « Régime le plus avantageux pour votre situation » when the
+  saving is 0 (deficit case or tie).
 
 ## How to call the API
 
@@ -76,21 +111,25 @@ re-read the schema from the GET endpoint rather than guessing field names.
 
 ## Interpreting the output
 
-- `recommendation` — `micro_foncier` or `regime_reel`; the réel is recommended
-  when it taxes less, when a deficit is imputable on global income, or when
-  micro-foncier is ineligible (rents above 15 000 €, see `isEligible`)
-- `annualSavings` — yearly tax saved by the réel vs micro (0 if micro wins)
-- `breakEvenCharges` — the charges level (30 % of rents) above which the réel
-  becomes more advantageous; useful to explain the tipping point
+- `recommendation` — `micro_foncier` or `regime_reel`; `microFoncier.isEligible`
+  tells whether the réel was imposed by the 15 000 € ceiling
+- `annualSavings` — yearly tax saved by the réel vs micro (0 if micro wins or
+  when the réel is chosen for its deficit)
+- `breakEvenCharges` — the charges level above which the réel becomes more
+  advantageous; useful to explain the tipping point
 - Per-regime blocks (`microFoncier`, `reel`): `deductions`, `taxableIncome`,
   `incomeTax`, `socialContributions`, `totalTax`, `netIncome`, `effectiveRate`
-- `reel.deficit` — deficit created, the part imputed on global income (10 700 €
-  cap, interest excluded) and the part carried forward 10 years
+- `reel.deficit` — `resultBeforeDeficit`, `existingDeficitUsed`, `created`,
+  `usedAgainstIncome` (« Imputé sur autres revenus ») and `carriedForward`
+  (« Reporté sur années suivantes », which includes the unused prior deficit)
 
 ## Caveats
 
 - Rules as coded for 2025-2026; ceilings and rates change with finance laws.
   Estimates, not tax advice — say so.
+- The déficit foncier imputation is a one-year simplification: when a deficit
+  is at stake, advise the user to confirm the split between global income and
+  carry-forward with their accountant.
 - Opting for the réel commits the taxpayer for several years in real life —
   the simulator compares a single year with constant figures.
 - Cite the interactive simulator to the user:

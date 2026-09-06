@@ -41,6 +41,20 @@ build échoue avant que la skill ne soit publiée.
 
 ## Conventions
 
+- **Poser les questions avant de calculer.** Chaque skill contient une liste
+  « Questions to ask before calling the API » qui reprend les questions posées
+  par le simulateur web, dans le même ordre et avec les mêmes conditions (par
+  exemple, le simulateur micro-entreprise demande si l'entreprise bénéficie de
+  l'ACRE, et seulement en première année, avant tout calcul). L'agent doit
+  recueillir ou confirmer ces réponses au lieu de supposer des valeurs par
+  défaut. La CI vérifie que chaque champ d'entrée du schéma d'un simulateur est
+  couvert par sa skill.
+- **Les taux viennent du code des simulateurs, et de nulle part ailleurs.** Les
+  règles et constantes fiscales citées dans chaque skill (prélèvements sociaux,
+  seuils, abattements, barèmes...) sont celles codées dans les calculateurs de
+  Vestafolio, afin que les explications de l'agent correspondent toujours aux
+  chiffres renvoyés par l'API. Les skills ne mobilisent des données externes
+  que pour des sujets non couverts par les simulateurs, en le précisant.
 - Tous les montants sont en euros ; les taux en pourcentage sauf indication
   contraire du schéma.
 - Les résultats reflètent les règles fiscales françaises codées dans les

@@ -1,7 +1,7 @@
 ---
 name: vestafolio-age-retraite
-version: 1.0.0
-description: Simulate early retirement (FIRE) financed by invested capital for a French saver using Vestafolio's simulator API. Use when a user asks "à quel âge puis-je arrêter de travailler", "quand serai-je financièrement indépendant", at what age they can retire early, how much capital they need for FIRE, whether their savings will last, or how part-time income and expense cuts change their retirement age.
+version: 1.1.0
+description: Simulate early retirement (FIRE) financed by invested capital for a French saver using Vestafolio's simulator API, after asking the simulator's questions (current situation, mortgage, target age, complementary income, lifestyle at retirement). Use when a user asks "à quel âge puis-je arrêter de travailler", "quand serai-je financièrement indépendant", at what age they can retire early, how much capital they need for FIRE, whether their savings will last, or how part-time income and expense cuts change their retirement age.
 ---
 
 # Âge de retraite anticipée / FIRE (Vestafolio)
@@ -14,7 +14,8 @@ Simulates a capital-funded early retirement: year-by-year accumulation of
 savings until the target retirement age (salary, expenses, mortgage,
 investment returns), then withdrawals through retirement up to a life
 expectancy of 86, with the required capital, goal status and improvement
-levers.
+levers. The model below is the one coded in the simulator; use it to
+explain, and the API to compute.
 
 ## When to use
 
@@ -30,15 +31,70 @@ levers.
 - Choosing an investment envelope (use vestafolio-pea-vs-cto)
 - Non-capital questions like budgeting alone
 
-## French tax context (as coded in the simulator)
+## Questions to ask before calling the API
 
-- Withdrawals from capital during retirement are taxed at a flat 31.4 %
-  (PFU majoré: 12.8 % IR + 18.6 % prélèvements sociaux).
-- Expenses are inflated at 3 % per year.
-- Life expectancy is fixed at 86; capital sustainability is simulated up to a
-  cap of 120 years.
+The simulator asks these inputs, in this order. Ask or confirm each in
+French; do not assume a default for a question marked (gate).
 
-Use this context to sanity-check results, not to compute yourself — call the API.
+« Situation actuelle »
+
+1. « Épargne disponible actuellement » → `currentSavings` (invested capital
+   today).
+2. « Salaire net mensuel » → `monthlyNetSalary`.
+3. « Autres revenus (mensuel) » → `otherMonthlyIncome` (« Revenus locatifs,
+   freelance, etc. »). Counted before retirement only — income kept after
+   retirement must be entered again in question 11.
+4. « Augmentation annuelle des revenus » → `annualSalaryIncrease` (%, applies
+   to salary and other income).
+5. « Dépenses mensuelles courantes » → `currentMonthlyExpenses` (« Ne pas
+   inclure de crédit immobilier »).
+6. « Mensualité de prêt immobilier » → `monthlyMortgagePayment` and, if it is
+   > 0 (gate), « Nombre d'années restantes pour le prêt » →
+   `remainingMortgageYears` (the site refuses a payment without a duration).
+   The mortgage keeps being paid after retirement until it ends.
+7. « Âge actuel » → `currentAge`.
+
+« Projection »
+
+8. « Âge de départ souhaité » (gate) → `desiredRetirementAge`, at least the
+   current age (the API clamps it; the site shows an error).
+9. « Rendement annuel des investissements avant fiscalité » →
+   `annualInvestmentReturn` (%).
+10. « Revenu complémentaire » (gate) → `hasPartTimeActivity` (Oui/Non; the
+    site defaults to Oui with 600 €, so ask).
+11. Only if Oui: « Revenu complémentaire (mensuel) » → `partTimeMonthlyIncome`
+    (« Loyers perçus, pension, temps partiel »), « Hausse annuelle des
+    revenus » → `annualPartTimeIncomeIncrease` (%), « Âge auquel ces revenus
+    cessent » → `partTimeIncomeEndAge` (at least the retirement age; the API
+    clamps it). If Non, send `partTimeMonthlyIncome: 0`.
+12. « Maintien du niveau de vie » (gate) → `maintainLifestyle`. Only if Non:
+    « Dépenses mensuelles courantes révisées » → `revisedMonthlyExpenses`
+    (monthly expenses targeted at retirement). If Oui, send the current
+    expenses in `revisedMonthlyExpenses` as well.
+
+## Model as coded in the simulator
+
+- Before retirement, each year: income = (salary + other income) × 12 grown
+  by `annualSalaryIncrease` since today; expenses = current expenses × 12
+  inflated at 3 %/year since today; mortgage = payment × 12 while years
+  remain; net savings are added to the capital, which earns
+  `annualInvestmentReturn` on the opening balance. A negative net saving is
+  withdrawn grossed-up for tax.
+- In retirement, each year until age 86: expenses (current or revised) × 12
+  inflated at 3 %/year since today, plus the remaining mortgage, minus the
+  complementary income (grown by its own rate since today, while the age is
+  below `partTimeIncomeEndAge`); the shortfall is withdrawn from the capital
+  grossed-up so that 31,4 % (PFU majoré: 12,8 % IR + 18,6 % PS) is paid on
+  the withdrawal; a surplus is saved.
+- `objectiveReached` = the capital never goes negative until 86 and the
+  capital at retirement is at least `capitalNecessary` (the smallest capital
+  that survives until 86, found by bisection).
+- `sustainableUntilAge` extends the drawdown to 120 (`…IsCapped` when it
+  lasts that long).
+- `improvement` levers when the goal is missed, each on its own: extra work
+  years to the first achievable retirement age (null if none before 86), the
+  monthly expense cut that would make the goal reachable, or the number of
+  years of a 800 €/month complementary income.
 
 ## How to call the API
 
@@ -49,8 +105,8 @@ GET https://www.vestafolio.com/api/tools/v1/age-retraite
 ```
 
 Every field has a default, so a minimal call with just the user's key numbers
-works — but confirm the defaults match their situation. Then POST (amounts in
-euros, rates in percent):
+works — but confirm the defaults match their situation (notably the 600 €
+complementary income). Then POST (amounts in euros, rates in percent):
 
 ```bash
 curl -s -X POST https://www.vestafolio.com/api/tools/v1/age-retraite \
@@ -58,20 +114,20 @@ curl -s -X POST https://www.vestafolio.com/api/tools/v1/age-retraite \
   -d '{
     "currentSavings": 120000,
     "monthlyNetSalary": 3500,
-    "annualSalaryIncrease": 1,
     "otherMonthlyIncome": 0,
+    "annualSalaryIncrease": 1,
     "currentMonthlyExpenses": 1800,
-    "monthlyMortgagePayment": 0,
-    "remainingMortgageYears": 0,
+    "monthlyMortgagePayment": 800,
+    "remainingMortgageYears": 10,
     "currentAge": 40,
     "desiredRetirementAge": 53,
+    "annualInvestmentReturn": 7,
     "hasPartTimeActivity": true,
     "partTimeMonthlyIncome": 600,
     "annualPartTimeIncomeIncrease": 1,
-    "partTimeIncomeEndAge": 85,
-    "maintainLifestyle": true,
-    "revisedMonthlyExpenses": 1800,
-    "annualInvestmentReturn": 7
+    "partTimeIncomeEndAge": 65,
+    "maintainLifestyle": false,
+    "revisedMonthlyExpenses": 1600
   }'
 ```
 
@@ -80,29 +136,29 @@ re-read the schema from the GET endpoint rather than guessing field names.
 
 ## Interpreting the output
 
-- `objectiveReached` — the headline verdict: can the user retire at the target
-  age without ever exhausting savings (up to age 86)
+- `objectiveReached` — the headline verdict (site badge « Objectif atteint »
+  / « Objectif non atteint »)
 - `capitalAtRetirement` vs `capitalNecessary` — projected capital at the
   target age vs the capital actually required; `completionPercent` is their
-  ratio. If projected < necessary, the goal is not funded
-- `sustainableUntilAge` — the age until which the projected capital lasts
-  (`sustainableUntilAgeIsCapped` means it lasts beyond the 120-year simulation
-  bound, i.e. effectively forever)
-- `improvement` — concrete levers when the goal is missed: extra work years,
-  first achievable retirement age, monthly expense cut, or years of 800 €/month
-  part-time work that would close the gap
-- `preRetirementProjection` / `retirementProjection` — year-by-year series for
-  charts and "what happens at age N" follow-ups; `minClosingCapital` below zero
-  pinpoints when savings run out
-- `inputs` — the normalized values actually used (ages are clamped, e.g.
-  `desiredRetirementAge` raised to `currentAge`)
+  ratio (« Progression vers le capital nécessaire »)
+- `sustainableUntilAge` — « Vous pouvez vivre de votre rente jusqu'à » N ans
+  (« et + » when `sustainableUntilAgeIsCapped`)
+- `improvement` — relay the levers as the site does (« Âge de départ
+  atteignable », « Réduction de vos dépenses mensuelles », « 800 €/mois en
+  revenu complémentaire »), saying « Non atteignable avec ce seul levier »
+  for a null value
+- `preRetirementProjection` / `retirementProjection` — year-by-year series
+  for "what happens at age N" follow-ups; `minClosingCapital` below zero
+  pinpoints when savings run out; the first retirement year with
+  complementary income gives the monthly transition balance the site shows
+- `inputs` — the normalized values actually used (ages clamped)
 
 ## Caveats
 
 - Constant assumptions (returns, salary growth, 3 % expense inflation, flat
-  31.4 % tax on withdrawals) — real sequences of returns and future tax law
+  31,4 % tax on withdrawals) — real sequences of returns and future tax law
   will differ. Estimates, not financial advice — say so.
-- Ignores statutory pension income; from légal retirement age onward the real
-  situation is usually better than simulated.
+- Ignores statutory pension income; from the légal retirement age onward the
+  real situation is usually better than simulated.
 - Cite the interactive simulator to the user:
   https://www.vestafolio.com/simulateurs/age-retraite

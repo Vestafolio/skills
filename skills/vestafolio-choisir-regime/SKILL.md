@@ -1,7 +1,7 @@
 ---
 name: vestafolio-choisir-regime
-version: 1.0.0
-description: Determine which French business legal forms (micro-entreprise, EI, EURL, SASU, SARL, SAS, SELARL, SELAS) an entrepreneur is eligible for and get a recommendation using Vestafolio's simulator API. Use when a user asks "quel statut juridique", which legal structure to start a business in France, micro-entreprise eligibility, or whether to create a company for liability or assurance chômage reasons.
+version: 1.1.0
+description: Determine which French business legal forms (micro-entreprise, EI, EURL, SASU, SARL, SAS, SELARL, SELAS) an entrepreneur is eligible for and get a recommendation using Vestafolio's simulator API, after asking the simulator's questions (activity category, projected turnover, existing business, liability, partners, unemployment insurance). Use when a user asks "quel statut juridique", which legal structure to start a business in France, micro-entreprise eligibility, or whether to create a company for liability or assurance chômage reasons.
 ---
 
 # Choisir son régime d'entreprise (Vestafolio)
@@ -32,20 +32,74 @@ cotisations and no taxes.
 - Tax or cotisation amounts (this tool returns none by design)
 - Non-French business structures
 
-## French tax context (as coded in the simulator, 2026)
+## Questions to ask before calling the API
 
-- Micro-entreprise thresholds 2026: 203 100 € for vente and commerce,
-  83 600 € for services and activités libérales.
-- An existing business (`hasExistingBusiness`) makes a new micro-entreprise
-  ineligible.
-- Partners (`hasPartners`) orient toward pluripersonal forms (SARL, SAS)
-  rather than unipersonal ones (EURL, SASU).
-- Limited-liability needs orient toward a société; a wish for assurance
-  chômage orients toward assimilé-salarié statuses (SASU, SAS, SELAS).
-- Regulated professions libérales (médecin, avocat, architecte…) are oriented
-  toward the SEL forms (SELARL/SELAS).
+The simulator is a three-step wizard. Ask the questions of step 1, then
+step 2, in French, before presenting any result; do not assume a default for
+a question marked (gate).
 
-Use this context to sanity-check results, not to compute yourself — call the API.
+Step 1 — « Votre activité » (« Décrivez votre projet pour identifier les
+régimes adaptés »)
+
+1. « Type d'activité » (gate) → `activityCategory` : « Vente de
+   marchandises » = `vente` (E-commerce, boutique, vente en ligne) ;
+   « Prestations de services (BIC) » = `services_bic` (Restauration,
+   transport, hébergement) ; « Prestations de services (BNC) » =
+   `services_bnc` (Consultant, développeur, designer) ; « Profession libérale
+   réglementée » = `liberal` (Médecin, avocat, architecte) ; « Artisanat » =
+   `artisan` (Plombier, électricien, menuisier) ; « Commerce de détail » =
+   `commerce` (Épicerie, librairie, magasin).
+2. « Chiffre d'affaires prévisionnel (annuel) » → `projectedTurnover`.
+   Simulator helper: « Seuil micro-entreprise : 203 100 € » for vente and
+   commerce, « 83 600 € » for the other categories (not shown for a
+   regulated profession, which is never micro-eligible).
+3. « Avez-vous déjà une entreprise ? » (gate) → `hasExistingBusiness`
+   (« Impacts sur l'éligibilité au statut micro » — Oui removes the
+   micro-entreprise).
+
+Step 2 — « Vos besoins » (« Précisez vos critères pour affiner la
+recommandation »)
+
+4. « Protection du patrimoine personnel » (gate) → `needsLimitedLiability`
+   (« Limiter votre responsabilité aux apports dans la société »).
+5. « Projet avec associé(s) » (gate) → `hasPartners` (« Ouvre les formes
+   pluripersonnelles (SARL/SAS et SEL pour professions réglementées) »).
+6. « Accès à l'assurance chômage » (gate) → `wantsUnemploymentInsurance`
+   (« Possibilité de toucher le chômage en cas d'arrêt d'activité »).
+7. « Situation familiale (optionnel) » → `maritalStatus` (« Célibataire » =
+   `single`, « Marié(e) / Pacsé(e) » = `married`), `numberOfChildren`
+   (« Enfants à charge ») and « Autres revenus du foyer » → `otherIncome`.
+   The simulator marks them optional and they do not change the eligibility
+   result as coded today: send them if known, otherwise the defaults, and do
+   not block on them.
+
+## Rules as coded in the simulator (2026)
+
+- Micro thresholds: 203 100 € (vente, commerce), 83 600 € (services_bic,
+  artisan, services_bnc, liberal).
+- Micro-entreprise eligible only if the activity is not `liberal`, the
+  turnover is ≤ threshold and there is no existing business. It is
+  recommended when neither limited liability nor unemployment insurance is
+  wanted (« Idéal pour démarrer avec un faible CA et une gestion
+  simplifiée »).
+- Entreprise individuelle is always eligible (non-liberal) and recommended
+  when the turnover exceeds the threshold without a liability need (« Adapté
+  pour un CA élevé avec déduction des charges réelles »).
+- `liberal`: only SELARL (recommended with liability need and no chômage
+  wish) and SELAS (liability need and chômage wish) are proposed; the
+  explanations recall that a SEL needs a majority of practising
+  professionals in capital and votes.
+- `hasPartners`: SARL (liability, no chômage) and SAS (liability and chômage)
+  replace EURL and SASU.
+- Solo, non-liberal: SASU is proposed (recommended with liability need and
+  either a chômage wish or a `services_bnc` activity); EURL is proposed too
+  except for `services_bnc` — the simulator explains « En prestations de
+  services (BNC), l'EURL n'est pas proposée : la SASU est l'option sociétaire
+  en solo. »
+- `recommendedRegime` = the first regime flagged recommended, otherwise the
+  first eligible one (its generic description is then shown as the reason).
+- Each regime carries `nextSimulatorLink`: /simulateurs/micro-entreprise for
+  micro-entreprise and EI, /simulateurs/sasu-vs-eurl for company forms.
 
 ## How to call the API
 
@@ -63,13 +117,13 @@ curl -s -X POST https://www.vestafolio.com/api/tools/v1/choisir-regime \
   -d '{
     "activityCategory": "services_bnc",
     "projectedTurnover": 50000,
-    "otherIncome": 0,
+    "hasExistingBusiness": false,
+    "needsLimitedLiability": true,
+    "hasPartners": false,
+    "wantsUnemploymentInsurance": true,
     "maritalStatus": "single",
     "numberOfChildren": 0,
-    "hasExistingBusiness": false,
-    "hasPartners": false,
-    "needsLimitedLiability": false,
-    "wantsUnemploymentInsurance": false
+    "otherIncome": 0
   }'
 ```
 
@@ -78,15 +132,18 @@ re-read the schema from the GET endpoint rather than guessing field names.
 
 ## Interpreting the output
 
-- `recommendedRegime` — the suggested structure with `recommendationReason`;
-  may be null if nothing stands out
+- `recommendedRegime` — the suggested structure with `recommendationReason`
+  (or its `description` when no criterion matched — say so)
 - `eligibleRegimes` — every eligible form with French `advantages` and
-  `disadvantages` lists you can relay directly
+  `disadvantages` lists you can relay directly (the simulator shows the first
+  three of each)
 - `microEntrepriseEligible`, `microEntrepriseThreshold`,
-  `turnoverExceedsThreshold` — explain micro eligibility explicitly
+  `turnoverExceedsThreshold` — explain micro eligibility explicitly,
+  including the existing-business exclusion, which the explanations do not
+  spell out
 - `explanations` — the reasoning trail in French, useful to justify the answer
 - `nextSimulatorLink` on a regime — hand the user the matching Vestafolio
-  simulator (e.g. /simulateurs/sasu-vs-eurl) for the quantitative follow-up
+  simulator (and the matching skill) for the quantitative follow-up
 
 ## Caveats
 

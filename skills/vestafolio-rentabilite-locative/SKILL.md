@@ -1,7 +1,7 @@
 ---
 name: vestafolio-rentabilite-locative
-version: 1.0.0
-description: Compute gross and net rental yield and monthly cash-flow for a French buy-to-let investment from acquisition cost, rent and annual charges using Vestafolio's simulator API. Use when a user asks about rental profitability, "quelle rentabilité locative", rendement brut vs net, cash-flow of an investissement locatif, or whether a rental property is a good deal.
+version: 1.1.0
+description: Compute gross and net rental yield and monthly cash-flow for a French buy-to-let investment from acquisition cost, rent and annual charges using Vestafolio's simulator API, after asking the simulator's questions (price, notary fees, works, rent, taxe foncière, copropriété, other charges, management fees, vacancy). Use when a user asks about rental profitability, "quelle rentabilité locative", rendement brut vs net, cash-flow of an investissement locatif, or whether a rental property is a good deal.
 ---
 
 # Rentabilité locative (Vestafolio)
@@ -13,7 +13,8 @@ Reply in French whenever the user speaks or writes in French.
 Computes the gross and net rental yield and the average monthly cash-flow
 (excluding financing) of a buy-to-let investment, from the total acquisition
 cost (price, frais de notaire, travaux), the rent and the annual charges
-(taxe foncière, copropriété, gestion, vacance locative).
+(taxe foncière, copropriété, gestion, vacance locative). The formulas below
+are the ones coded in the simulator.
 
 ## When to use
 
@@ -29,21 +30,43 @@ cost (price, frais de notaire, travaux), the rent and the annual charges
 - Loan payments for financing the purchase — use vestafolio-credit-immobilier
 - Computing the notary fees input precisely — use vestafolio-frais-notaire first
 
-## French rental context (as coded in the simulator)
+## Questions to ask before calling the API
 
-- Total acquisition cost = purchase price + frais de notaire + travaux; both
-  yields are expressed as a percent of this total, not of the price alone.
-- Gross yield = annual rent (12 × monthlyRent, no vacancy) / acquisition cost.
-- Vacancy is modeled in weeks per year (`vacancyWeeks`): rent is scaled down
-  pro rata, giving `annualNetRent` and `vacancyLoss`.
-- Net yield deducts vacancy and all charges: taxe foncière, non-recoverable
-  charges de copropriété, other charges (assurance PNO, entretien) and
-  management fees (`managementFeesPercent`, applied to rent actually
-  collected). It is the key decision indicator.
-- Cash-flow is computed before any loan: financing and taxes on rental income
-  (micro-foncier, LMNP, etc.) are out of scope here.
+The simulator asks these nine inputs, in this order. Ask or confirm each in
+French; there is no conditional question.
 
-Use this context to sanity-check results, not to compute yourself — call the API.
+« Acquisition »
+
+1. « Prix d'achat » → `purchasePrice`.
+2. « Frais de notaire » → `notaryFees` (euros; the site's 16 000 € default is
+   not derived from the price — chain vestafolio-frais-notaire for a real
+   figure, roughly 7-8 % in the ancien, 2-3 % in the neuf).
+3. « Travaux et ameublement » → `renovationCost`.
+4. « Loyer mensuel » → `monthlyRent` (hors charges).
+
+« Charges annuelles »
+
+5. « Taxe foncière » → `propertyTax` (€/an).
+6. « Charges de copropriété » → `condoFees` (€/an, non-recoverable share).
+7. « Autres charges » → `otherCharges` (« Assurance PNO, entretien, etc. »).
+8. « Frais de gestion » → `managementFeesPercent` (percent of the rent
+   collected; the site allows 0 to 15; 0 for self-management).
+9. « Vacance locative » → `vacancyWeeks` (« Période sans locataire (en
+   semaines par an) », 0 to 52).
+
+## Formulas as coded in the simulator
+
+- Total acquisition cost = price + notary fees + works; both yields are a
+  percent of this total, not of the price alone.
+- Gross yield = 12 × monthly rent / acquisition cost (no vacancy).
+- Vacancy loss = gross rent × weeks / 52; rent after vacancy = gross rent −
+  vacancy loss; management fees = that rent × percent.
+- Annual charges = taxe foncière + copropriété + other charges + management
+  fees. Net rent = rent after vacancy − annual charges.
+- Net yield = net rent / acquisition cost; monthly cash-flow = net rent / 12,
+  before any loan or tax.
+- Site disclaimer: « Ce calcul ne prend pas en compte le financement ni la
+  fiscalité. »
 
 ## How to call the API
 
@@ -61,11 +84,11 @@ curl -s -X POST https://www.vestafolio.com/api/tools/v1/rentabilite-locative \
   -d '{
     "purchasePrice": 200000,
     "notaryFees": 16000,
-    "renovationCost": 0,
+    "renovationCost": 5000,
     "monthlyRent": 900,
     "propertyTax": 1200,
     "condoFees": 1800,
-    "otherCharges": 0,
+    "otherCharges": 300,
     "managementFeesPercent": 8,
     "vacancyWeeks": 2
   }'
@@ -76,19 +99,21 @@ re-read the schema from the GET endpoint rather than guessing field names.
 
 ## Interpreting the output
 
-- `result.grossYield` vs `result.netYield` — always present both; the gap
-  shows how much charges and vacancy eat into the headline number. Net yield
-  is the decision metric.
-- `result.monthlyCashFlow` — average monthly net rental income before any
-  loan; negative means charges exceed rents even without financing
-- `result.netRent` / `result.annualCharges` / `result.vacancyLoss` — the
-  components behind the net yield, useful to explain what to optimize
-- `result.totalAcquisitionCost` — the denominator of both yields
+- `grossYield` vs `netYield` — always present both; the gap shows how much
+  charges and vacancy eat into the headline number. Net yield is the decision
+  metric.
+- `monthlyCashFlow` — average monthly net rental income before any loan;
+  negative means charges exceed rents even without financing
+- `annualNetRent` (after vacancy), `netRent`, `annualCharges`, `vacancyLoss`
+  — the components behind the net yield, useful to explain what to optimize
+- `totalAcquisitionCost` — the denominator of both yields
 
 ## Caveats
 
 - Excludes financing (mensualités) and taxation of rental income — a positive
-  cash-flow here can turn negative once a loan and impôts are added.
+  cash-flow here can turn negative once a loan and impôts are added; chain
+  vestafolio-credit-immobilier and vestafolio-micro-foncier-vs-reel or
+  vestafolio-lmnp-fiscalite.
 - Estimates with constant rent and charges; not investment advice — say so.
 - Cite the interactive simulator to the user:
   https://www.vestafolio.com/simulateurs/rentabilite-locative

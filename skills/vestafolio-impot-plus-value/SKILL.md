@@ -1,7 +1,7 @@
 ---
 name: vestafolio-impot-plus-value
-version: 1.0.0
-description: Compute French real-estate capital gains tax (impôt sur la plus-value immobilière) with holding-period abatements using Vestafolio's simulator API. Use when a user asks "plus-value immobilière", how much tax they owe when selling a property or résidence secondaire in France, about the abattement pour durée de détention, the 22/30-year exemptions, LMNP amortization reintegration, or whether to sell now or wait.
+version: 1.1.0
+description: Compute French real-estate capital gains tax (impôt sur la plus-value immobilière) with holding-period abatements using Vestafolio's simulator API, after asking the simulator's questions (prices, dates, résidence principale, investissement locatif, régime réel LMNP and amortissements, frais d'acquisition and travaux method). Use when a user asks "plus-value immobilière", how much tax they owe when selling a property or résidence secondaire in France, about the abattement pour durée de détention, the 22/30-year exemptions, LMNP amortization reintegration, or whether to sell now or wait.
 ---
 
 # Impôt sur la plus-value immobilière (Vestafolio)
@@ -12,8 +12,9 @@ Reply in French whenever the user speaks or writes in French.
 
 Computes the tax due on a French property sale: gross and net capital gain,
 acquisition-fee and renovation deductions, holding-period abatements, IR at
-19 %, prélèvements sociaux at 17.2 %, the high-gain surtax, exemptions, and
-the savings from postponing the sale by one year.
+19 %, prélèvements sociaux at 17,2 %, the high-gain surtax, exemptions, and
+the savings from postponing the sale by one year. The rules below are the
+ones coded in the simulator; use them to explain, and the API to compute.
 
 ## When to use
 
@@ -31,20 +32,58 @@ the savings from postponing the sale by one year.
   modeled)
 - Non-French property or non-French tax situations
 
-## French tax context (as coded in the simulator, 2025-2026)
+## Questions to ask before calling the API
 
-- Capital gain taxed at 19 % IR plus 17.2 % prélèvements sociaux, after
-  abatements for holding duration: full IR exemption after 22 years, full PS
-  exemption after 30 years.
-- Surtax on high gains above 50 000 €.
-- Exemptions: résidence principale (fully exempt), sale price under 15 000 €.
-- Acquisition costs: forfait of 7.5 % of the purchase price, or actual
-  documented amounts. Renovation works: forfait of 15 % of the purchase price
-  (only if held >= 5 years), or actual documented amounts.
-- LMNP au régime réel: amortization deducted during the rental is reintegrated
-  into the taxable gain (rule since 2025).
+The simulator asks these inputs, in this order (card « Paramètres de la
+vente »). Ask or confirm each in French; stop early when a gate makes the
+rest irrelevant.
 
-Use this context to sanity-check results, not to compute yourself — call the API.
+1. « Prix d'achat » → `purchasePrice` and « Prix de vente » → `salePrice`.
+2. « Date d'achat » → `purchaseDate` and « Date de vente » → `saleDate`
+   (YYYY-MM-DD; the sale must be after the purchase; the site defaults the
+   sale to today). The holding period is derived from them in whole years
+   (the day of the month is ignored).
+3. « Résidence principale » (gate) → `isMainResidence` (« Exonération totale
+   si oui »). If Oui, the sale is fully exempt: send the flag and skip the
+   remaining questions.
+4. Only if Non: « Investissement locatif » (gate) → `isRentalInvestment`
+   (« Active le traitement spécifique LMNP lors de la revente »). Only if
+   Oui: « Régime réel » (gate) → `isRealRegime` (« Si non, le calcul
+   standard de plus-value s'applique »). Only if Oui: « Somme totale des
+   amortissements à date » → `totalAmortization` (« En LMNP au réel, la
+   totalité des amortissements déjà déduits est réintégrée dans la
+   plus-value brute. »); the site requires an amount strictly above 0.
+5. Only when the gross gain is positive — « Frais déductibles »:
+   « Frais d'acquisition » → `acquisitionFeesMethod`: « Forfait 7.5% » =
+   `forfait`, « Montant réel » = `reel` (then `acquisitionFeesReal`, the
+   documented amount), « Aucun » = `none`. « Travaux » → `renovationMethod`:
+   « Forfait 15% » = `forfait` (only available from 5 full years of holding;
+   otherwise it yields 0), « Montant réel (justificatifs) » = `reel` (then
+   `renovationReal`), « Aucun » = `none`.
+6. `sellerType`: the website always uses `particulier`; the API also accepts
+   `sci_ir`, which follows the same rules. Send `particulier` unless the user
+   sells through a SCI à l'IR.
+
+## Rules and rates as coded in the simulator (2025-2026)
+
+- Standard case: net gain = sale price − purchase price − acquisition fees
+  (7,5 % forfait or documented) − works (15 % forfait from 5 years, or
+  documented), floored at 0.
+- LMNP au régime réel (`isRentalInvestment` and `isRealRegime`): acquisition
+  fees are added to the acquisition price instead of being deducted, the
+  works are subtracted from the sale price only from 5 years of holding, and
+  the amortization deducted during the rental is added back to the gain.
+- Abattement IR: 6 % per year from the 6th to the 21st year, 4 % for the
+  22nd, so full exemption at 22 years. Abattement PS: 1,65 % per year from
+  the 6th to the 21st year, 1,60 % for the 22nd, 9 % per year from the 23rd
+  to the 30th, full exemption at 30 years.
+- Tax: 19 % IR on the gain after the IR abatement, 17,2 % PS on the gain
+  after the PS abatement, plus the surtax on the IR base above 50 000 €
+  (2 % to 6 % by bands, with smoothing at each band entry).
+- Full exemptions: résidence principale, sale price ≤ 15 000 €, holding of
+  30 years or more. From 22 years the IR is exempt and only PS remain.
+- `savingsIfWait1Year` = current tax − tax if the sale happened one year
+  later (the site suggests waiting when it exceeds 100 €).
 
 ## How to call the API
 
@@ -66,12 +105,11 @@ curl -s -X POST https://www.vestafolio.com/api/tools/v1/impot-plus-value \
     "purchaseDate": "2015-01-01",
     "saleDate": "2026-06-01",
     "isMainResidence": false,
-    "isRentalInvestment": false,
-    "isRealRegime": false,
-    "totalAmortization": 0,
+    "isRentalInvestment": true,
+    "isRealRegime": true,
+    "totalAmortization": 45000,
     "acquisitionFeesMethod": "forfait",
-    "acquisitionFeesReal": 16000,
-    "renovationMethod": "forfait",
+    "renovationMethod": "reel",
     "renovationReal": 20000,
     "sellerType": "particulier"
   }'
@@ -79,27 +117,31 @@ curl -s -X POST https://www.vestafolio.com/api/tools/v1/impot-plus-value \
 
 Unknown fields are rejected (strict schema) — if you get a `validation_error`,
 re-read the schema from the GET endpoint rather than guessing field names.
+`acquisitionFeesReal` / `renovationReal` are required with the `reel`
+methods.
 
 ## Interpreting the output
 
 - `totalTax` — the key decision figure (IR + PS + surtax); `netProceeds` is
   the gain kept after tax, `effectiveTaxRate` the levy on the gross gain
 - `grossCapitalGain` vs `netCapitalGain` — before/after acquisition-fee and
-  renovation deductions
-- `irAbatementRate` / `psAbatementRate` and the corresponding amounts — how the
-  holding period shrank the taxable base
-- `yearsUntilIRExemption` / `yearsUntilPSExemption` and `savingsIfWait1Year` —
-  highlight these for "sell now or wait" questions
+  renovation deductions; in LMNP réel also `transferProceeds`,
+  `acquisitionPriceUsed` (« Prix d'acquisition corrigé ») and
+  `amortizationReintegration`
+- `irAbatementRate` / `psAbatementRate` and the corresponding amounts — how
+  the holding period shrank the taxable base; `holdingPeriodYears` /
+  `holdingPeriodMonths`
+- `yearsUntilIRExemption` / `yearsUntilPSExemption` and `savingsIfWait1Year`
+  — highlight these for "sell now or wait" questions
 - `abatementSchedule` — the full 0-to-30-year abatement table by holding
-  duration, useful to show when each exemption kicks in
+  duration
 - `exemptions` / `isFullyExempt` — applicable exemption reasons (French labels)
-- `amortizationReintegration` / `usesLMNPRealTaxation` — LMNP réel specifics
 
 ## Caveats
 
 - Rules as coded for 2025-2026; rates and abatement schedules change with
   finance laws. Estimates, not tax advice — say so.
-- The forfait options (7.5 % fees, 15 % works) are simulator conventions the
+- The forfait options (7,5 % fees, 15 % works) are simulator conventions the
   user may or may not be entitled to; actual documented amounts can differ.
 - Cite the interactive simulator to the user:
   https://www.vestafolio.com/simulateurs/impot-plus-value

@@ -1,7 +1,7 @@
 ---
 name: vestafolio-frais-notaire
-version: 1.0.0
-description: Compute French notary fees (frais de notaire) for a property purchase — DMTO transfer taxes, notary emoluments, debours, CSI, optional mortgage fees — by department and ancien/neuf/terrain using Vestafolio's simulator API. Use when a user asks about closing costs, "combien de frais de notaire", droits de mutation, or ancien vs neuf fee differences.
+version: 1.1.0
+description: Compute French notary fees (frais de notaire) for a property purchase — DMTO transfer taxes, notary emoluments, débours, CSI, optional mortgage fees — by department and ancien/neuf/terrain using Vestafolio's simulator API, after asking the simulator's questions (price, type of property, département, primo-accédant, hypothèque). Use when a user asks about closing costs, "combien de frais de notaire", droits de mutation, or ancien vs neuf fee differences.
 ---
 
 # Frais de notaire (Vestafolio)
@@ -13,9 +13,9 @@ Reply in French whenever the user speaks or writes in French.
 Computes the frais de notaire for a French property purchase — droits de
 mutation (DMTO), notary emoluments, débours, contribution de sécurité
 immobilière and optional mortgage registration fees — under the 2026 barème,
-with department-specific DMTO rates (most departments at the 5 % droit
-départemental, some at 4.50 %, Indre at 3.80 %), a primo-accédant
-flag, and an optional ancien vs neuf comparison.
+with department-specific DMTO rates, a primo-accédant flag and an optional
+ancien vs neuf comparison. The rates below are the ones coded in the
+simulator; use them to explain, and the API to compute.
 
 ## When to use
 
@@ -24,8 +24,8 @@ flag, and an optional ancien vs neuf comparison.
 - Questions about droits de mutation (DMTO), émoluments, or why fees differ
   between ancien and neuf (VEFA)
 - Budgeting the full acquisition cost on top of the purchase price
-- Department-specific questions (départements differ: 5 %, 4.50 % or 3.80 %
-  droit départemental) and primo-accédant purchases (résidence principale)
+- Department-specific questions and primo-accédant purchases (résidence
+  principale)
 
 ## When NOT to use
 
@@ -34,32 +34,55 @@ flag, and an optional ancien vs neuf comparison.
 - Rental profitability (it takes notary fees as an input) — use
   vestafolio-rentabilite-locative
 
-## French tax context (as coded in the simulator, barème 2026)
+## Questions to ask before calling the API
 
-- Ancien: DMTO built from the droit départemental, the taxe communale (1.20 %)
-  and the frais d'assiette et de recouvrement (2.37 % of the droit
-  départemental). Since the loi de finances 2025 let departments raise the
-  droit départemental from 4.50 % to 5.00 % (April 2025 - April 2028), most
-  departments apply 5.00 % (total DMTO ≈ 6.32 %); a minority stayed at 4.50 %
-  (≈ 5.81 %): Hautes-Alpes (05), Alpes-Maritimes (06), Ardèche (07), Charente
-  (16), Drôme (26), Lozère (48), Oise (60), Hautes-Pyrénées (65),
-  Saône-et-Loire (71), Guadeloupe (971), Mayotte (976); Indre (36) applies
-  the 3.80 % floor (≈ 5.09 %), and Hautes-Pyrénées (3.80 %) and Savoie (4.00 %) grant
-  primo-accédants dedicated reduced rates — hence the `department` input matters.
-- Primo-accédants: the 5 % increase does not apply to first-time buyers
-  acquiring their main residence — set `isPrimoAccedant: true` (ancien only)
-  and the droit départemental is capped at 4.50 %.
-- Neuf (VEFA or less than 5 years): only the taxe de publicité foncière
-  applies instead of full DMTO, which is why total fees are much lower
-  (roughly 2-3 % vs 7-8 % in the ancien).
-- Émoluments du notaire: regulated degressive scale by price bracket, plus TVA.
-- Débours and contribution de sécurité immobilière are added on top.
-- If `includeMortgage` is true (with `mortgageAmount`), hypothèque registration
-  fees (taxe, CSI, émoluments) are included.
-- Set `compareNeuf: true` to get an ancien vs neuf comparison at the same price
-  with the resulting savings.
+The simulator asks these inputs, in this order (card « Paramètres de
+l'achat »). Ask or confirm each in French; do not assume a default for a
+question marked (gate).
 
-Use this context to sanity-check results, not to compute yourself — call the API.
+1. « Prix d'achat » → `purchasePrice`.
+2. « Type de bien » (gate) → `acquisitionType`: « Ancien (7-8%) » =
+   `ancien`, « Neuf (2-3%) » = `neuf` (VEFA or less than 5 years),
+   « Terrain » = `terrain`.
+3. « Département » → `department` (code, e.g. « 75 - Paris », « 2A -
+   Corse-du-Sud », « 971 - Guadeloupe »; the valid codes are in the GET
+   schema). It changes the result for ancien and terrain only; for neuf the
+   DMTO is a flat rate.
+4. Only if not neuf: « Primo-accédant (résidence principale) » (gate) →
+   `isPrimoAccedant`. Simulator helper: « La majoration départementale à 5 %
+   ne s'applique pas ; certains départements votent un taux réduit dédié
+   (hors abattements locaux spécifiques, non modélisés) ». The flag only
+   affects the ancien; for a terrain it is accepted but has no effect.
+5. « Inclure les frais d'hypothèque » (gate) → `includeMortgage` (« Frais
+   d'inscription du prêt au registre foncier »). Only if Oui: « Montant du
+   prêt » → `mortgageAmount` (required by the API in that case). Say Non for
+   a caution/garantie bancaire, which is not modeled.
+6. `compareNeuf`: the website shows the « Comparaison Ancien vs Neuf » card
+   automatically for an ancien. Send `true` for an ancien purchase to
+   reproduce it (the comparison ignores the mortgage option on both sides).
+
+## Rules and rates as coded in the simulator (barème 2026)
+
+- Ancien and terrain: droit départemental + taxe communale 1,20 % + frais
+  d'assiette et de recouvrement of 2,37 % of the droit départemental. The
+  droit départemental is 5,00 % in most departments (loi de finances 2025,
+  April 2025 to April 2028), 4,50 % in Hautes-Alpes (05), Alpes-Maritimes
+  (06), Ardèche (07), Charente (16), Drôme (26), Lozère (48), Oise (60),
+  Saône-et-Loire (71), Guadeloupe (971) and Mayotte (976), 4,50 % in
+  Hautes-Pyrénées (65) and 3,80 % in Indre (36). Total DMTO ≈ 6,32 % at
+  5,00 %, 5,81 % at 4,50 %, 5,09 % at 3,80 %.
+- Primo-accédant (ancien only): the droit départemental is capped at 4,50 %;
+  Hautes-Pyrénées (65) apply 3,80 % and Savoie (73) 4,00 % to them.
+- Neuf: taxe de publicité foncière of 0,715 % of the price instead of the
+  DMTO, whatever the department.
+- Émoluments du notaire (HT): 3,87 % up to 6 500 €, 1,596 % to 17 000 €,
+  1,064 % to 60 000 €, 0,799 % above, plus 20 % TVA.
+- Débours: 800 € + 200 € per full 100 000 € of price. Contribution de
+  sécurité immobilière: 0,10 % of the price.
+- Hypothèque (when included): 0,70 % taxe de publicité foncière + 0,05 % CSI
+  + 0,33 % émoluments HT (plus TVA) of the loan amount.
+- Local abatements (e.g. Calvados) and negotiated emolument rebates are not
+  modeled.
 
 ## How to call the API
 
@@ -79,8 +102,10 @@ curl -s -X POST https://www.vestafolio.com/api/tools/v1/frais-notaire \
     "purchasePrice": 250000,
     "acquisitionType": "ancien",
     "department": "75",
-    "includeMortgage": false,
-    "compareNeuf": false
+    "isPrimoAccedant": true,
+    "includeMortgage": true,
+    "mortgageAmount": 200000,
+    "compareNeuf": true
   }'
 ```
 
@@ -89,17 +114,17 @@ re-read the schema from the GET endpoint rather than guessing field names.
 
 ## Interpreting the output
 
-- `result.fees.total` and `result.fees.percentage` — headline numbers: total
-  fees in euros and as a percent of the purchase price
-- `result.fees` breakdown — `droitsMutation`, `emolumentsNotaire`, `debours`,
-  `contributionSecurite`, `fraisHypotheque`, `tva`; use it to explain that most
-  of the "frais de notaire" are actually taxes, not the notary's remuneration
-- `result.fees.breakdown` — detail of droits (`droitsDepartement`,
-  `droitsCommune`, plus `fraisPrefecture` which holds the frais d'assiette et
-  de recouvrement, 2.37 % of the droit départemental) and émoluments HT/TVA
-- `result.comparison` (present when `compareNeuf` is true) — full `ancien` and
-  `neuf` fee blocks plus `savings`, the fee saving from buying neuf at the
-  same price
+- `fees.total` and `fees.percentage` — headline numbers: total fees in euros
+  and as a percent of the price; the site also shows « Coût total
+  acquisition » = price + fees
+- `fees` breakdown — `droitsMutation`, `emolumentsNotaire` (TTC),
+  `debours`, `contributionSecurite`, `fraisHypotheque`, `tva`; use it to
+  explain that most of the "frais de notaire" are taxes, not the notary's
+  remuneration
+- `fees.breakdown` — `droitsDepartement`, `droitsCommune`, `fraisPrefecture`
+  (the frais d'assiette et de recouvrement), `emolumentsHT`, `emolumentsTVA`
+- `comparison` (when `compareNeuf` is true) — `ancien` and `neuf` fee blocks
+  plus `savings` (« Économie dans le neuf »)
 
 ## Caveats
 
@@ -107,8 +132,6 @@ re-read the schema from the GET endpoint rather than guessing field names.
   the notary at signing (provision then final settlement). Departments can
   still change their DMTO rate until April 2028 — the per-department table
   follows the DGFiP list applicable on 1 June 2026.
-- Negotiated emolument rebates on high-value deals and special cases (SAFER,
-  certain exemptions) are not modeled.
 - Not tax or legal advice — say so.
 - Cite the interactive simulator to the user:
   https://www.vestafolio.com/simulateurs/frais-notaire
