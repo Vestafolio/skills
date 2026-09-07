@@ -1,6 +1,6 @@
 ---
 name: vestafolio-micro-entreprise
-version: 1.2.0
+version: 1.2.1
 description: Compare French micro-entreprise vs régime réel and versement libératoire with actual Vestafolio API calls. Use for consulting or freelance regime choices with projected revenue and expenses, "quel régime adopter", "micro ou réel", cotisations, ACRE, and VL eligibility. Ask missing simulator inputs before recommending; do not answer from remembered tax rules.
 ---
 
@@ -12,7 +12,10 @@ For a request within this simulator's scope:
 
 1. Reuse answers already supplied. Ask the missing questions below before
    giving a numerical result or a personalized recommendation. Example values
-   and schema defaults are not the user's answers.
+   and schema defaults are not the user's answers. If supplied facts conflict
+   with each other or the API's supported inputs, ask which fact to correct
+   before computing. Do not change an explicit answer to make validation pass;
+   branch defaults below apply only when the user has not contradicted them.
 2. Once inputs are known, actually call a tool: fetch the schema, then POST
    the user's parameters. Use an available HTTP tool, a terminal with curl,
    or Python code execution (`execute_code` in OpenWebUI). Python can use
@@ -112,14 +115,19 @@ already gave an answer, do not ask again.
      ACRE de 50 % (au lieu de 25 % depuis juillet 2026) »). Then « Mois
      d'activité cette année » → `monthsOfActivity` (1 à 12 ; « Le seuil micro
      est proratisé l'année de création »). Send `previousYearAboveThreshold`
-     and `twoYearsAgoAboveThreshold` as false: the API rejects them in a
-     first year.
+     and `twoYearsAgoAboveThreshold` as false only if the user has not supplied
+     a conflicting history. If they report prior-year overruns and a first
+     year, ask them to clarify before POSTing.
    - If Non: « CA au-dessus du seuil micro en N-1 » →
      `previousYearAboveThreshold` (« Le régime micro se perd après deux
      dépassements consécutifs (N-1 et N-2) »). Only if Oui: « CA également
      au-dessus du seuil en N-2 » → `twoYearsAgoAboveThreshold` (« Si oui, le
      régime micro ne s'applique plus cette année »). Send `hasACRE: false`
-     (the API rejects ACRE outside the first year) and `monthsOfActivity: 12`.
+     and `monthsOfActivity: 12` only for a consistent full-year profile.
+     If the user explicitly reports ACRE or a shorter activity period,
+     preserve that information and ask for clarification before POSTing.
+     Explain that the API models ACRE only in the first year; do not treat
+     this simulator limitation as proof that the user's situation is wrong.
 6. « Connaissez-vous votre TMI ? » (gate)
    - Oui: « Tranche marginale d'imposition (TMI) » → `marginalTaxRate`, one
      of 0, 11, 30, 41, 45.

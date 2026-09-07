@@ -1,6 +1,6 @@
 ---
 name: vestafolio-achat-vs-location
-version: 1.2.0
+version: 1.2.2
 description: Compare final net wealth between buying a primary residence with a mortgage and renting while investing savings, over a chosen horizon, using Vestafolio's simulator API, after asking the simulator's questions (available savings first, market assumptions, purchase scenario, rent scenario). Use when a user asks whether to buy or rent, "acheter ou louer", "est-ce rentable d'acheter ma résidence principale", rent vs buy break-even, or what owning really costs versus renting in France.
 ---
 
@@ -12,7 +12,10 @@ For a request within this simulator's scope:
 
 1. Reuse answers already supplied. Ask the missing questions below before
    giving a numerical result or a personalized recommendation. Example values
-   and schema defaults are not the user's answers.
+   and schema defaults are not the user's answers. City, property type,
+   condition and surface only help suggest missing assumptions; they are not
+   required when the user supplies the corresponding rates, notary fees and
+   annual property tax. With complete calculation inputs, proceed to the API.
 2. Once inputs are known, actually call a tool: fetch the schema, then POST
    the user's parameters. Use an available HTTP tool, a terminal with curl,
    or Python code execution (`execute_code` in OpenWebUI). Python can use
@@ -58,8 +61,10 @@ explain, and the API to compute.
 ## Questions to ask before calling the API
 
 The simulator asks these inputs, in this order, and starts with the savings
-on purpose: they bound the loan share and the works budget. Ask or confirm
-each in French before computing.
+on purpose: they bound the loan share and the works budget. Ask only for
+missing calculation inputs in French; reuse explicit values without asking
+for confirmation. Collect descriptive details only when needed to suggest a
+missing assumption, then let the user confirm that assumption.
 
 « Hypothèses de marché »
 
@@ -86,7 +91,9 @@ each in French before computing.
 « Scénario Achat »
 
 6. « Type de bien » (Appartement / Maison), « État » (Ancien / Neuf) and
-   « Surface » — not sent to the API; they drive the notary-fee suggestion
+   « Surface » — not sent to the API. Skip these questions when
+   `notaryFeePercent` and `taxeFonciereAnnual` are already supplied.
+   Otherwise, they drive the notary-fee suggestion
    (7,5 % ancien, 2,5 % neuf) and the taxe foncière estimate (per m² per
    year, appartement / maison: Paris 15-35 / 20-45 ; Lyon 12-25 / 15-30 ;
    Marseille 10-22 / 12-28 ; Bordeaux 14-28 / 16-32 ; Toulouse 11-24 /
@@ -98,10 +105,10 @@ each in French before computing.
 8. « Part empruntée » → `loanAmount` = price × share. Simulator rule: « Un
    apport minimum équivalent à 10% de la valeur du bien est exigé. Votre
    apport + frais de notaire ne peuvent excéder l'épargne disponible. » So
-   the loan is at most 90 % of the price, and at least price − (savings −
-   notary fees). If the savings cannot cover 10 % apport plus the notary
-   fees, the simulator warns « Votre épargne disponible est insuffisante pour
-   l'apport et les frais » — tell the user before computing.
+   the website limits the loan share to 90 % of the price. Its cash budget
+   must cover apport + notary fees + works. A savings constraint limits the
+   cash contribution; it is not a maximum borrowing capacity. These website
+   controls are distinct from the API validation described below.
 9. « Taux crédit » → `loanRate` and « Durée emprunt » → `loanYears`.
 10. « Frais de notaire » → `notaryFeePercent` (percent of the price; 7,5 for
     an ancien, 2,5 for a neuf — chain vestafolio-frais-notaire for an exact
@@ -180,7 +187,12 @@ Note the input constraints: `loanAmount` must not exceed `purchasePrice`, and
 `travaux` must fit within savings after apport and notary fees (the response's
 `maxTravauxBudget` gives the ceiling). Unknown fields are rejected (strict
 schema) — if you get a `validation_error`, re-read the schema from the GET
-endpoint rather than guessing field names.
+endpoint rather than guessing field names. For invalid user values, explain
+which supplied field was rejected and ask the user to correct it. Do not
+invent a financing ceiling or substitute a new loan amount. For example,
+`loanAmount > purchasePrice` calls for clarification of those two amounts,
+not an unsolicited borrowing-capacity calculation. Only describe a numerical
+limit if it was returned by the tool, and keep its field and meaning intact.
 
 ## Interpreting the output
 
