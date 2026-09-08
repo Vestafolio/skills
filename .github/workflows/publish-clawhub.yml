@@ -15,6 +15,7 @@ on:
     branches: [main]
     paths:
       - "skills/**"
+      - ".github/workflows/publish-clawhub.yml"
   workflow_dispatch:
 
 permissions:
@@ -31,5 +32,9 @@ jobs:
     with:
       root: skills
       dry_run: false
+      # Catalog metadata is supplied at publish time, not in SKILL.md.
+      # Explicit metadata also republishes unchanged skills (patch version).
+      categories: finance
+      topics: personal-finance
     secrets:
       clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
