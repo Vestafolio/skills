@@ -1,6 +1,6 @@
 ---
 name: vestafolio-impot-plus-value
-version: 1.2.0
+version: 1.2.1
 description: Compute French real-estate capital gains tax (impôt sur la plus-value immobilière) with holding-period abatements using Vestafolio's simulator API, after asking the simulator's questions (prices, dates, résidence principale, investissement locatif, régime réel LMNP and amortissements, frais d'acquisition and travaux method). Use when a user asks "plus-value immobilière", how much tax they owe when selling a property or résidence secondaire in France, about the abattement pour durée de détention, the 22/30-year exemptions, LMNP amortization reintegration, or whether to sell now or wait.
 ---
 
@@ -13,14 +13,25 @@ For a request within this simulator's scope:
 1. Reuse answers already supplied. Ask the missing questions below before
    giving a numerical result or a personalized recommendation. Example values
    and schema defaults are not the user's answers.
-2. Once inputs are known, actually call a tool: fetch the schema, then POST
-   the user's parameters. Use an available HTTP tool, a terminal with curl,
+2. Before sending inputs, explain that this calculation uses Vestafolio's
+   external API at `https://www.vestafolio.com`, summarize the fields and
+   values to be sent, and obtain the user's agreement. Existing explicit
+   approval for this destination and data scope is sufficient; do not ask
+   again for calls it already covers. Installing or selecting the skill alone
+   is not approval to transmit personal data. If the user declines, do not
+   POST; offer the simulator link for manual use without prefilled inputs.
+3. Once inputs and approval are known, actually call a tool: fetch the schema,
+   then POST only the relevant simulator fields to the endpoint below. Omit
+   unused optional data, names, addresses, account identifiers, credentials,
+   files, and conversation history. No authentication is needed. Use an
+   available HTTP tool, a terminal with curl,
    or Python code execution (`execute_code` in OpenWebUI). Python can use
    `urllib.request`; in browser-based Pyodide use `await pyfetch(...)` from
    `pyodide.http`. A Python environment does not need a shell to call the API.
-3. Check HTTP success and the POST envelope: `ok` must be `true`; read the
+4. Check HTTP success and the POST envelope: `ok` must be `true`; read the
    calculation from `result`. Ground the answer in that output, state relevant
-   assumptions and limits, and link the interactive simulator below.
+   assumptions and limits. Offer the simulator link when useful for checking
+   assumptions or exploring alternatives; respect requests for no links.
 
 Writing a code block is not execution. Do not substitute mental arithmetic,
 remembered tax rules, or the worked example for a tool result. If execution
@@ -165,5 +176,5 @@ methods.
   finance laws. Estimates, not tax advice — say so.
 - The forfait options (7,5 % fees, 15 % works) are simulator conventions the
   user may or may not be entitled to; actual documented amounts can differ.
-- Cite the interactive simulator to the user:
+- Interactive simulator, if useful to the user:
   https://www.vestafolio.com/simulateurs/impot-plus-value

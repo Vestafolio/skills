@@ -1,6 +1,6 @@
 ---
 name: vestafolio-micro-entreprise
-version: 1.2.1
+version: 1.2.2
 description: Compare French micro-entreprise vs régime réel and versement libératoire with actual Vestafolio API calls. Use for consulting or freelance regime choices with projected revenue and expenses, "quel régime adopter", "micro ou réel", cotisations, ACRE, and VL eligibility. Ask missing simulator inputs before recommending; do not answer from remembered tax rules.
 ---
 
@@ -16,14 +16,25 @@ For a request within this simulator's scope:
    with each other or the API's supported inputs, ask which fact to correct
    before computing. Do not change an explicit answer to make validation pass;
    branch defaults below apply only when the user has not contradicted them.
-2. Once inputs are known, actually call a tool: fetch the schema, then POST
-   the user's parameters. Use an available HTTP tool, a terminal with curl,
+2. Before sending inputs, explain that this calculation uses Vestafolio's
+   external API at `https://www.vestafolio.com`, summarize the fields and
+   values to be sent, and obtain the user's agreement. Existing explicit
+   approval for this destination and data scope is sufficient; do not ask
+   again for calls it already covers. Installing or selecting the skill alone
+   is not approval to transmit personal data. If the user declines, do not
+   POST; offer the simulator link for manual use without prefilled inputs.
+3. Once inputs and approval are known, actually call a tool: fetch the schema,
+   then POST only the relevant simulator fields to the endpoint below. Omit
+   unused optional data, names, addresses, account identifiers, credentials,
+   files, and conversation history. No authentication is needed. Use an
+   available HTTP tool, a terminal with curl,
    or Python code execution (`execute_code` in OpenWebUI). Python can use
    `urllib.request`; in browser-based Pyodide use `await pyfetch(...)` from
    `pyodide.http`. A Python environment does not need a shell to call the API.
-3. Check HTTP success and the POST envelope: `ok` must be `true`; read the
+4. Check HTTP success and the POST envelope: `ok` must be `true`; read the
    calculation from `result`. Ground the answer in that output, state relevant
-   assumptions and limits, and link the interactive simulator below.
+   assumptions and limits. Offer the simulator link when useful for checking
+   assumptions or exploring alternatives; respect requests for no links.
 
 Writing a code block is not execution. Do not substitute mental arithmetic,
 remembered tax rules, or the worked example for a tool result. If execution
@@ -257,5 +268,5 @@ N-1/N-2 overrun flag in a first year.
   for a separate question about them.
 - The ACRE exemption legally runs to the end of the 3rd civil quarter after
   creation; the simulator approximates it as the first year.
-- Cite the interactive simulator to the user:
+- Interactive simulator, if useful to the user:
   https://www.vestafolio.com/simulateurs/micro-entreprise

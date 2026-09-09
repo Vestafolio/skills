@@ -1,6 +1,6 @@
 ---
 name: vestafolio-achat-vs-location
-version: 1.2.2
+version: 1.2.3
 description: Compare final net wealth between buying a primary residence with a mortgage and renting while investing savings, over a chosen horizon, using Vestafolio's simulator API, after asking the simulator's questions (available savings first, market assumptions, purchase scenario, rent scenario). Use when a user asks whether to buy or rent, "acheter ou louer", "est-ce rentable d'acheter ma résidence principale", rent vs buy break-even, or what owning really costs versus renting in France.
 ---
 
@@ -16,14 +16,25 @@ For a request within this simulator's scope:
    condition and surface only help suggest missing assumptions; they are not
    required when the user supplies the corresponding rates, notary fees and
    annual property tax. With complete calculation inputs, proceed to the API.
-2. Once inputs are known, actually call a tool: fetch the schema, then POST
-   the user's parameters. Use an available HTTP tool, a terminal with curl,
+2. Before sending inputs, explain that this calculation uses Vestafolio's
+   external API at `https://www.vestafolio.com`, summarize the fields and
+   values to be sent, and obtain the user's agreement. Existing explicit
+   approval for this destination and data scope is sufficient; do not ask
+   again for calls it already covers. Installing or selecting the skill alone
+   is not approval to transmit personal data. If the user declines, do not
+   POST; offer the simulator link for manual use without prefilled inputs.
+3. Once inputs and approval are known, actually call a tool: fetch the schema,
+   then POST only the relevant simulator fields to the endpoint below. Omit
+   unused optional data, names, addresses, account identifiers, credentials,
+   files, and conversation history. No authentication is needed. Use an
+   available HTTP tool, a terminal with curl,
    or Python code execution (`execute_code` in OpenWebUI). Python can use
    `urllib.request`; in browser-based Pyodide use `await pyfetch(...)` from
    `pyodide.http`. A Python environment does not need a shell to call the API.
-3. Check HTTP success and the POST envelope: `ok` must be `true`; read the
+4. Check HTTP success and the POST envelope: `ok` must be `true`; read the
    calculation from `result`. Ground the answer in that output, state relevant
-   assumptions and limits, and link the interactive simulator below.
+   assumptions and limits. Offer the simulator link when useful for checking
+   assumptions or exploring alternatives; respect requests for no links.
 
 Writing a code block is not execution. Do not substitute mental arithmetic,
 remembered tax rules, or the worked example for a tool result. If execution
@@ -219,5 +230,5 @@ limit if it was returned by the tool, and keep its field and meaning intact.
 - Not modeled: assurance emprunteur, copropriété charges and maintenance,
   selling costs, capital-gains rules, tax on investment returns.
 - Estimates, not financial advice — say so.
-- Cite the interactive simulator to the user:
+- Interactive simulator, if useful to the user:
   https://www.vestafolio.com/simulateurs/achat-vs-location

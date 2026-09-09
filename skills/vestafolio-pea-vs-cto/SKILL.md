@@ -1,6 +1,6 @@
 ---
 name: vestafolio-pea-vs-cto
-version: 1.2.0
+version: 1.2.1
 description: Compare PEA, CTO (compte-titres) and assurance-vie net-of-tax outcomes for a French investor using Vestafolio's simulator API, after asking the simulator's questions (initial capital, monthly contribution, TMI, holding period, expected return, assurance-vie fees). Use when a user asks which investment envelope to choose, about PEA vs CTO taxation, flat tax (PFU) on investments, assurance-vie abattement, the 150 000 € PEA ceiling, or where to invest monthly savings in France.
 ---
 
@@ -13,14 +13,25 @@ For a request within this simulator's scope:
 1. Reuse answers already supplied. Ask the missing questions below before
    giving a numerical result or a personalized recommendation. Example values
    and schema defaults are not the user's answers.
-2. Once inputs are known, actually call a tool: fetch the schema, then POST
-   the user's parameters. Use an available HTTP tool, a terminal with curl,
+2. Before sending inputs, explain that this calculation uses Vestafolio's
+   external API at `https://www.vestafolio.com`, summarize the fields and
+   values to be sent, and obtain the user's agreement. Existing explicit
+   approval for this destination and data scope is sufficient; do not ask
+   again for calls it already covers. Installing or selecting the skill alone
+   is not approval to transmit personal data. If the user declines, do not
+   POST; offer the simulator link for manual use without prefilled inputs.
+3. Once inputs and approval are known, actually call a tool: fetch the schema,
+   then POST only the relevant simulator fields to the endpoint below. Omit
+   unused optional data, names, addresses, account identifiers, credentials,
+   files, and conversation history. No authentication is needed. Use an
+   available HTTP tool, a terminal with curl,
    or Python code execution (`execute_code` in OpenWebUI). Python can use
    `urllib.request`; in browser-based Pyodide use `await pyfetch(...)` from
    `pyodide.http`. A Python environment does not need a shell to call the API.
-3. Check HTTP success and the POST envelope: `ok` must be `true`; read the
+4. Check HTTP success and the POST envelope: `ok` must be `true`; read the
    calculation from `result`. Ground the answer in that output, state relevant
-   assumptions and limits, and link the interactive simulator below.
+   assumptions and limits. Offer the simulator link when useful for checking
+   assumptions or exploring alternatives; respect requests for no links.
 
 Writing a code block is not execution. Do not substitute mental arithmetic,
 remembered tax rules, or the worked example for a tool result. If execution
@@ -163,5 +174,5 @@ re-read the schema from the GET endpoint rather than guessing field names.
 - The website also reminds users that a PEA only holds European equities and
   eligible funds, that a CTO has no ceiling, and that the assurance-vie adds
   a 152 500 € per-beneficiary transmission abattement not modeled here.
-- Cite the interactive simulator to the user:
+- Interactive simulator, if useful to the user:
   https://www.vestafolio.com/simulateurs/pea-vs-cto

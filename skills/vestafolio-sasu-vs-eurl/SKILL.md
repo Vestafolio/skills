@@ -1,6 +1,6 @@
 ---
 name: vestafolio-sasu-vs-eurl
-version: 1.2.0
+version: 1.2.1
 description: Compare SASU (président assimilé salarié) and EURL (gérant TNS) net director income for a French solo entrepreneur using Vestafolio's simulator API, after asking the simulator's questions (revenue, deductible charges, capital social, TMI, PFU vs barème, salary level per structure). Use when a user asks "SASU ou EURL", which company structure pays more, about cotisations sociales assimilé salarié vs TNS, dividend taxation in an EURL, or optimal salary vs dividendes split.
 ---
 
@@ -13,14 +13,25 @@ For a request within this simulator's scope:
 1. Reuse answers already supplied. Ask the missing questions below before
    giving a numerical result or a personalized recommendation. Example values
    and schema defaults are not the user's answers.
-2. Once inputs are known, actually call a tool: fetch the schema, then POST
-   the user's parameters. Use an available HTTP tool, a terminal with curl,
+2. Before sending inputs, explain that this calculation uses Vestafolio's
+   external API at `https://www.vestafolio.com`, summarize the fields and
+   values to be sent, and obtain the user's agreement. Existing explicit
+   approval for this destination and data scope is sufficient; do not ask
+   again for calls it already covers. Installing or selecting the skill alone
+   is not approval to transmit personal data. If the user declines, do not
+   POST; offer the simulator link for manual use without prefilled inputs.
+3. Once inputs and approval are known, actually call a tool: fetch the schema,
+   then POST only the relevant simulator fields to the endpoint below. Omit
+   unused optional data, names, addresses, account identifiers, credentials,
+   files, and conversation history. No authentication is needed. Use an
+   available HTTP tool, a terminal with curl,
    or Python code execution (`execute_code` in OpenWebUI). Python can use
    `urllib.request`; in browser-based Pyodide use `await pyfetch(...)` from
    `pyodide.http`. A Python environment does not need a shell to call the API.
-3. Check HTTP success and the POST envelope: `ok` must be `true`; read the
+4. Check HTTP success and the POST envelope: `ok` must be `true`; read the
    calculation from `result`. Ground the answer in that output, state relevant
-   assumptions and limits, and link the interactive simulator below.
+   assumptions and limits. Offer the simulator link when useful for checking
+   assumptions or exploring alternatives; respect requests for no links.
 
 Writing a code block is not execution. Do not substitute mental arithmetic,
 remembered tax rules, or the worked example for a tool result. If execution
@@ -72,7 +83,13 @@ question marked (gate).
      `eurlMarginalTaxRate`.
    - Non: ask « Autres revenus du foyer », « Situation » (Célibataire /
      Marié(e) / Pacsé(e)) and « Enfants à charge ». The simulator then
-     estimates one TMI per structure: call the impot-revenu tool twice with
+     estimates one TMI per structure. Before those calls, explain that the
+     household inputs and each structure's salary will also be sent to
+     `https://www.vestafolio.com/api/tools/v1/impot-revenu`. Include both calls
+     in the user's approval scope, or obtain agreement for this additional
+     data use if it was not covered. If declined, ask for a user-chosen TMI
+     assumption instead and label it as an assumption. With approval, fetch
+     that tool's schema and call the impot-revenu tool twice with
      `revenuNetImposable` = other income + the gross salary of that structure
      (see 6 and 7), the family situation, `jointDeclaration` true when
      married, `partnerIncome` 0 and the children; use each `marginalRate`
@@ -181,5 +198,5 @@ Salary amounts above the maximum are capped silently: check
 - Assumes the full post-remuneration profit is distributed as dividends and
   taxes the rémunération as a single-part household without the 10 %
   abattement.
-- Cite the interactive simulator to the user:
+- Interactive simulator, if useful to the user:
   https://www.vestafolio.com/simulateurs/sasu-vs-eurl

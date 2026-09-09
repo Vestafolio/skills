@@ -63,7 +63,8 @@ Try these two prompts in a fresh chat with the skill selected:
 2. « Un ami souhaite lancer son entreprise pour faire du consulting. Il vise
    50K€ de chiffre d'affaires et 10k€ de charges réelles. Quel régime adopter ? »
    Expect questions about the missing simulator inputs before any verdict.
-   No POST is expected yet. After answering, expect a schema GET followed by
+   No POST is expected yet. After answering and agreeing to the disclosed data
+   transfer, expect a schema GET followed by
    a POST preserving `annualRevenue: 50000` and `chargesReelles: 10000`.
 
 If the first succeeds but the second ignores a verified full skill body,
@@ -96,6 +97,11 @@ an example, the build fails before the skill is published.
 
 ## Conventions
 
+- **Explain data sharing before sending.** Summarize which inputs will go to
+  Vestafolio's external API and obtain agreement, reusing explicit approval
+  that already covers the destination and data scope. If declined, offer the
+  simulator for manual use without prefilled personal data. Omit unused fields;
+  `choisir-regime` does not need marital status, children, or household income.
 - **Execute before presenting results.** Use the available HTTP, terminal or
   Python tool, check the API's `ok`/`result` envelope, and disclose failures.
   Never replace a failed or skipped call with a remembered calculation.
@@ -104,7 +110,8 @@ an example, the build fails before the skill is published.
   in the same order and with the same conditions (e.g. the micro-entreprise
   simulator asks whether the business benefits from ACRE, and only in its
   first year, before any computation). Agents must collect or confirm those
-  answers instead of silently assuming defaults. CI checks that every input
+  answers instead of silently assuming defaults, except fields explicitly
+  documented as unused and omitted. CI checks that every input
   field of a simulator's schema is covered by its skill.
 - **Rates come from the simulator code, nowhere else.** The tax rules and
   constants quoted in each skill (prélèvements sociaux, seuils, abattements,
@@ -115,4 +122,4 @@ an example, the build fails before the skill is published.
 - Results reflect the French tax rules coded in the simulators (barèmes
   2025-2026) and are estimates, not tax advice.
 - Every skill links the human-facing simulator page (`/simulateurs/{slug}`) —
-  cite it to users so they can explore interactively.
+  offer it when useful for exploring interactively, respecting requests for no links.

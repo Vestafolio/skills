@@ -1,6 +1,6 @@
 ---
 name: vestafolio-choisir-regime
-version: 1.2.0
+version: 1.2.1
 description: Determine which French business legal forms (micro-entreprise, EI, EURL, SASU, SARL, SAS, SELARL, SELAS) an entrepreneur is eligible for and get a recommendation using Vestafolio's simulator API, after asking the simulator's questions (activity category, projected turnover, existing business, liability, partners, unemployment insurance). Use when a user asks "quel statut juridique", which legal structure to start a business in France, micro-entreprise eligibility, or whether to create a company for liability or assurance chômage reasons.
 ---
 
@@ -13,14 +13,25 @@ For a request within this simulator's scope:
 1. Reuse answers already supplied. Ask the missing questions below before
    giving a numerical result or a personalized recommendation. Example values
    and schema defaults are not the user's answers.
-2. Once inputs are known, actually call a tool: fetch the schema, then POST
-   the user's parameters. Use an available HTTP tool, a terminal with curl,
+2. Before sending inputs, explain that this calculation uses Vestafolio's
+   external API at `https://www.vestafolio.com`, summarize the fields and
+   values to be sent, and obtain the user's agreement. Existing explicit
+   approval for this destination and data scope is sufficient; do not ask
+   again for calls it already covers. Installing or selecting the skill alone
+   is not approval to transmit personal data. If the user declines, do not
+   POST; offer the simulator link for manual use without prefilled inputs.
+3. Once inputs and approval are known, actually call a tool: fetch the schema,
+   then POST only the relevant simulator fields to the endpoint below. Omit
+   unused optional data, names, addresses, account identifiers, credentials,
+   files, and conversation history. No authentication is needed. Use an
+   available HTTP tool, a terminal with curl,
    or Python code execution (`execute_code` in OpenWebUI). Python can use
    `urllib.request`; in browser-based Pyodide use `await pyfetch(...)` from
    `pyodide.http`. A Python environment does not need a shell to call the API.
-3. Check HTTP success and the POST envelope: `ok` must be `true`; read the
+4. Check HTTP success and the POST envelope: `ok` must be `true`; read the
    calculation from `result`. Ground the answer in that output, state relevant
-   assumptions and limits, and link the interactive simulator below.
+   assumptions and limits. Offer the simulator link when useful for checking
+   assumptions or exploring alternatives; respect requests for no links.
 
 Writing a code block is not execution. Do not substitute mental arithmetic,
 remembered tax rules, or the worked example for a tool result. If execution
@@ -88,12 +99,12 @@ recommandation »)
    pluripersonnelles (SARL/SAS et SEL pour professions réglementées) »).
 6. « Accès à l'assurance chômage » (gate) → `wantsUnemploymentInsurance`
    (« Possibilité de toucher le chômage en cas d'arrêt d'activité »).
-7. « Situation familiale (optionnel) » → `maritalStatus` (« Célibataire » =
-   `single`, « Marié(e) / Pacsé(e) » = `married`), `numberOfChildren`
-   (« Enfants à charge ») and « Autres revenus du foyer » → `otherIncome`.
-   The simulator marks them optional and they do not change the eligibility
-   result as coded today: send them if known, otherwise the defaults, and do
-   not block on them.
+
+The web form also shows optional household fields: `maritalStatus`,
+`numberOfChildren`, and `otherIncome`. They do not affect this tool's
+eligibility or recommendation. Do not ask for them or include them in the
+POST body, even if already known. The API accepts their omission; its internal
+defaults are not claims about the user's household.
 
 ## Rules as coded in the simulator (2026)
 
@@ -142,10 +153,7 @@ curl --fail-with-body --silent --show-error --max-time 30 -X POST https://www.ve
     "hasExistingBusiness": false,
     "needsLimitedLiability": true,
     "hasPartners": false,
-    "wantsUnemploymentInsurance": true,
-    "maritalStatus": "single",
-    "numberOfChildren": 0,
-    "otherIncome": 0
+    "wantsUnemploymentInsurance": true
   }'
 ```
 
@@ -173,5 +181,5 @@ re-read the schema from the GET endpoint rather than guessing field names.
   chain into vestafolio-sasu-vs-eurl or vestafolio-micro-entreprise.
 - Eligibility rules as coded for 2026; legal thresholds evolve. Estimates,
   not legal advice — say so.
-- Cite the interactive simulator to the user:
+- Interactive simulator, if useful to the user:
   https://www.vestafolio.com/simulateurs/choisir-regime

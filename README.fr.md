@@ -66,8 +66,8 @@ Essayez ces deux demandes dans un nouveau chat avec la skill sélectionnée :
 2. « Un ami souhaite lancer son entreprise pour faire du consulting. Il vise
    50K€ de chiffre d'affaires et 10k€ de charges réelles. Quel régime adopter ? »
    Le modèle doit demander les informations manquantes avant tout verdict.
-   Aucun POST n'est encore attendu. Après vos réponses, il doit lire le schéma
-   puis envoyer un POST conservant `annualRevenue: 50000` et
+   Aucun POST n'est encore attendu. Après vos réponses et votre accord sur
+   les données transmises, il doit lire le schéma puis envoyer un POST conservant `annualRevenue: 50000` et
    `chargesReelles: 10000`.
 
 Si le premier test réussit mais que le second ignore des instructions dont
@@ -102,6 +102,12 @@ build échoue avant que la skill ne soit publiée.
 
 ## Conventions
 
+- **Expliquer le partage avant l'envoi.** Résumer les données transmises à
+  l'API externe de Vestafolio et obtenir l'accord de l'utilisateur. Réutiliser
+  un accord explicite couvrant déjà cette destination et ces données. En cas
+  de refus, proposer le simulateur en saisie manuelle, sans données personnelles
+  préremplies. Omettre les champs inutilisés : `choisir-regime` n'a pas besoin
+  de la situation familiale, des enfants ni des revenus du foyer.
 - **Exécuter avant de présenter un résultat.** Utiliser l'outil HTTP, terminal
   ou Python disponible, vérifier l'enveloppe `ok`/`result` de l'API et signaler
   les échecs. Ne jamais remplacer un appel manquant par un calcul de mémoire.
@@ -111,7 +117,8 @@ build échoue avant que la skill ne soit publiée.
   exemple, le simulateur micro-entreprise demande si l'entreprise bénéficie de
   l'ACRE, et seulement en première année, avant tout calcul). L'agent doit
   recueillir ou confirmer ces réponses au lieu de supposer des valeurs par
-  défaut. La CI vérifie que chaque champ d'entrée du schéma d'un simulateur est
+  défaut, sauf pour les champs explicitement documentés comme inutilisés et
+  omis. La CI vérifie que chaque champ d'entrée du schéma d'un simulateur est
   couvert par sa skill.
 - **Les taux viennent du code des simulateurs, et de nulle part ailleurs.** Les
   règles et constantes fiscales citées dans chaque skill (prélèvements sociaux,
@@ -125,5 +132,5 @@ build échoue avant que la skill ne soit publiée.
   simulateurs (barèmes 2025-2026) et sont des estimations, pas un conseil
   fiscal.
 - Chaque skill référence la page du simulateur destinée aux humains
-  (`/simulateurs/{slug}`) — citez-la aux utilisateurs pour qu'ils puissent
-  explorer interactivement.
+  (`/simulateurs/{slug}`) — proposez-la si elle aide à explorer les hypothèses,
+  en respectant les demandes de réponse sans liens.
